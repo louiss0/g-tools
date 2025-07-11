@@ -5,7 +5,7 @@ import (
 )
 
 func TestNewEnum(t *testing.T) {
-	enum := NewEnum[string, string]("a", "b", "c")
+	enum := NewEnum[string]("a", "b", "c")
 
 	if len(enum.Options()) != 3 {
 		t.Errorf("Expected 3 options, got %d", len(enum.Options()))
@@ -13,7 +13,7 @@ func TestNewEnum(t *testing.T) {
 }
 
 func TestEnum_Options(t *testing.T) {
-	enum := NewEnum[int, int](1, 2, 3)
+	enum := NewEnum[int](1, 2, 3)
 	options := enum.Options()
 
 	if len(options) != 3 {
