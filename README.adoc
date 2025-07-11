@@ -1,0 +1,96 @@
+= g-tools
+
+A collection of Go packages designed to promote good practices and provide useful utilities for Go developers.
+
+== Philosophy
+
+`g-tools` focuses on delivering idiomatic, robust, and well-tested Go packages with clear documentation. The aim is to provide reusable components that align with Go's principles for simplicity and efficiency.
+
+== Packages
+
+This repository currently includes the following packages:
+
+=== `enum` Package
+
+The `enum` package provides a generic `Enum` type for defining and working with type-safe enumerations. It supports underlying types of `string`, `int`, `float32`, and `float64`, including type aliases.
+
+*   **`NewEnum`**: Creates a new `Enum` instance with a set of predefined values.
+*   **`Options`**: Returns the slice of valid enumeration options.
+*   **`Parse`**: Validates an input value against the enum options, returning the value and `nil` if valid, or the zero value of the input type and an `error` if invalid.
+*   **`Validate`**: Checks if a given value is one of the valid enum options, returning `true` or `false`.
+
+Example Usage:
+
+```go
+package main
+
+import (
+    "fmt"
+    "louiss0/github.com/g-tools/enum" // Replace with your actual module path
+)
+
+func main() {
+    // Example with string enum
+    statusEnum := enum.NewEnum[string, string]("active", "inactive", "pending")
+    fmt.Println("Status Options:", statusEnum.Options())
+
+    parsedStatus, err := statusEnum.Parse("active")
+    if err != nil {
+        fmt.Println("Error parsing status:", err)
+    } else {
+        fmt.Println("Parsed Status:", parsedStatus)
+    }
+
+    isValid := statusEnum.Validate("inactive")
+    fmt.Println("Is 'inactive' valid?", isValid)
+
+    // Example with int enum
+    priorityEnum := enum.NewEnum[int, int](1, 2, 3, 5, 8)
+    fmt.Println("Priority Options:", priorityEnum.Options())
+}
+```
+
+=== `mode` Package
+
+The `mode` package helps determine and manage the application's operational mode (e.g., development or production) exclusively at compile time using Go's build flags. This ensures the mode is fixed for a given build artifact and cannot be altered at runtime.
+
+*   **`ModeOperator` Interface**: Defines the contract for querying the application's mode.
+*   **`NewModeOperator`**: Initializes a `ModeOperator` instance based on the `buildMode` variable set via `-ldflags`. Defaults to `development` if no flag or an unrecognized flag is provided.
+*   **`IsDevelopmentMode`**: Checks if the application is running in development mode.
+*   **`IsProductionMode`**: Checks if the application is running in production mode.
+*   **`ExecuteIfModeIsProduction`**: Executes a callback function only when in production mode.
+
+How to set the mode during compilation:
+
+```bash
+go build -ldflags "-X louiss0/github.com/g-tools/mode.buildMode=production" main.go
+```
+
+Example Usage:
+
+```go
+package main
+
+import (
+    "fmt"
+    "louiss0/github.com/g-tools/mode" // Replace with your actual module path
+)
+
+func main() {
+    // In a real application, the mode is determined at compile time.
+    // For demonstration, imagine this is run after being compiled with a flag.
+    op := mode.NewModeOperator()
+
+    fmt.Printf("Current Mode: %s\n", op.GetMode())
+    fmt.Printf("Is Development: %t\n", op.IsDevelopmentMode())
+    fmt.Printf("Is Production: %t\n", op.IsProductionMode())
+
+    op.ExecuteIfModeIsProduction(func() {
+        fmt.Println("This message only appears in production builds!")
+    })
+}
+```
+
+== Contribution
+
+This project is an evolving collection of Go utilities. Contributions and suggestions are welcome!
