@@ -33,11 +33,12 @@ func (e Enum[T, U]) Options() []T {
 
 // Parse checks if the given value is a valid option for the Enum.
 // It panics if the value is not valid.
-func (e Enum[T, U]) Parse(value U) {
+// It returns it if it's true
+func (e Enum[T, U]) Parse(value U) U {
 
 	for _, v := range e.values {
 		if v == any(value) {
-			return
+			return value
 		}
 	}
 	panic(fmt.Sprintf("invalid value %v it must be one of %v", value, e.values))
