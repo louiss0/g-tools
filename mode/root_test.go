@@ -116,9 +116,9 @@ func TestModeOperator_ExecuteIfModeIsProduction(t *testing.T) {
 
 func ExampleNewModeOperator() {
 	// To run this example with a specific mode, use -ldflags:
-	// go run -ldflags "-X louiss0/github.com/g-tools/mode.buildMode=production" your_main_file.go
+	//  go run -ldflags "-X github.com/yourusername/yourproject/mode.buildMode=production" your_main_file.go
 	// Or for documentation generation:
-	// go doc -all louiss0/github.com/g-tools/mode
+	//  go doc -all github.com/yourusername/yourproject/mode
 
 	// Simulate setting buildMode for the example's execution environment
 	// In a real application, this would be set by the build command.
@@ -161,7 +161,7 @@ func ExampleModeOperator_ExecuteIfModeIsProduction() {
 	// Performing production-only task.
 }
 
-func ExampleModeOperator_IsModes() {
+func ExampleModeOperator_is_modes() {
 	// Simulate setting buildMode for the example's execution environment
 	originalBuildMode := buildMode
 	defer func() { buildMode = originalBuildMode }() // Restore original value
