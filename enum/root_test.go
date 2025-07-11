@@ -26,7 +26,7 @@ func TestEnum_Options(t *testing.T) {
 }
 
 func TestEnum_Validate(t *testing.T) {
-	enum := NewEnum[string, string]("a", "b", "c")
+	enum := NewEnum[string]("a", "b", "c")
 
 	if !enum.Validate("a") {
 		t.Errorf("Expected 'a' to be valid, but it wasn't")
@@ -38,7 +38,7 @@ func TestEnum_Validate(t *testing.T) {
 }
 
 func TestEnum_Parse(t *testing.T) {
-	enum := NewEnum[int, int](1, 2, 3)
+	enum := NewEnum[int](1, 2, 3)
 
 	// Test valid parse
 	enum.Parse(1)
