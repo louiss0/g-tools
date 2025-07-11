@@ -1,11 +1,12 @@
 package enum
 
 import (
+	"fmt"
 	"testing"
 )
 
 func TestNewEnum(t *testing.T) {
-	enum := NewEnum[string]("a", "b", "c")
+	enum := NewEnum[string, string]("a", "b", "c")
 
 	if len(enum.Options()) != 3 {
 		t.Errorf("Expected 3 options, got %d", len(enum.Options()))
@@ -13,7 +14,7 @@ func TestNewEnum(t *testing.T) {
 }
 
 func TestEnum_Options(t *testing.T) {
-	enum := NewEnum[int](1, 2, 3)
+	enum := NewEnum[int, int](1, 2, 3)
 	options := enum.Options()
 
 	if len(options) != 3 {
@@ -26,7 +27,7 @@ func TestEnum_Options(t *testing.T) {
 }
 
 func TestEnum_Validate(t *testing.T) {
-	enum := NewEnum[string]("a", "b", "c")
+	enum := NewEnum[string, string]("a", "b", "c")
 
 	if !enum.Validate("a") {
 		t.Errorf("Expected 'a' to be valid, but it wasn't")
@@ -38,16 +39,38 @@ func TestEnum_Validate(t *testing.T) {
 }
 
 func TestEnum_Parse(t *testing.T) {
-	enum := NewEnum[int](1, 2, 3)
+	enum := NewEnum[int, int](1, 2, 3)
 
 	// Test valid parse
 	enum.Parse(1)
 
 	// Test invalid parse
 	defer func() {
-		if r := recover(); r == nil {
+		r := recover()
+		if r == nil {
 			t.Errorf("The code did not panic")
+		}
+
+		if msg, ok := r.(string); ok {
+			if msg != "invalid value 4 it must be one of [1 2 3]" {
+				t.Errorf("The code panicked with the wrong message: %v", msg)
+			}
+		} else {
+			t.Errorf("The code panicked with an unexpected type: %T, value: %v", r, r)
 		}
 	}()
 	enum.Parse(4)
+}
+
+func ExampleNewEnum() {
+	enum := NewEnum[string, string]("a", "b", "c")
+	fmt.Println(enum.Options())
+	// Output: [a b c]
+}
+
+func ExampleEnum_Validate() {
+	enum := NewEnum[int, int](1, 2, 3)
+	valid := enum.Validate(2)
+	fmt.Println(valid)
+	// Output: true
 }
