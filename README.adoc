@@ -1,5 +1,9 @@
 = g-tools
 
+image:https://pkg.go.dev/badge/louiss0/github.com/g-tools.svg[GoDoc,link=https://pkg.go.dev/louiss0/github.com/g-tools]
+image:https://goreportcard.com/badge/louiss0/github.com/g-tools.svg[Go Report Card,link=https://goreportcard.com/report/louiss0/github.com/g-tools]
+image:https://img.shields.io/badge/License-MIT-blue.svg[License,link=https://opensource.org/licenses/MIT]
+
 A collection of Go packages designed to promote good practices and provide useful utilities for Go developers.
 
 == Philosophy
