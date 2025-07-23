@@ -1,7 +1,7 @@
 = g-tools
 
-image:https://pkg.go.dev/badge/louiss0/github.com/g-tools.svg[GoDoc,link=https://pkg.go.dev/louiss0/github.com/g-tools]
-image:https://goreportcard.com/badge/louiss0/github.com/g-tools.svg[Go Report Card,link=https://goreportcard.com/report/louiss0/github.com/g-tools]
+image:https://pkg.go.dev/badge/github.com/louiss0/g-tools.svg[GoDoc,link=https://pkg.go.dev/github.com/louiss0/g-tools]
+image:https://goreportcard.com/badge/github.com/louiss0/g-tools.svg[Go Report Card,link=https://goreportcard.com/report/github.com/louiss0/g-tools]
 image:https://img.shields.io/badge/License-MIT-blue.svg[License,link=https://opensource.org/licenses/MIT]
 
 A collection of Go packages designed to promote good practices and provide useful utilities for Go developers.
@@ -30,7 +30,7 @@ package main
 
 import (
     "fmt"
-    "louiss0/github.com/g-tools/enum" // Replace with your actual module path
+    "github.com/louiss0/g-tools/enum" // Replace with your actual module path
 )
 
 func main() {
@@ -67,7 +67,7 @@ The `mode` package helps determine and manage the application's operational mode
 How to set the mode during compilation:
 
 ```bash
-go build -ldflags "-X louiss0/github.com/g-tools/mode.buildMode=production" main.go
+go build -ldflags "-X github.com/louiss0/g-tools/mode.buildMode=production" main.go
 ```
 
 Example Usage:
@@ -77,7 +77,7 @@ package main
 
 import (
     "fmt"
-    "louiss0/github.com/g-tools/mode" // Replace with your actual module path
+    "github.com/louiss0/g-tools/mode" // Replace with your actual module path
 )
 
 func main() {

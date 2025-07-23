@@ -1,3 +1,3 @@
-module louiss0/github.com/g-tools
+module github.com/louiss0/g-tools
 
 go 1.23.2
