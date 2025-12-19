@@ -186,6 +186,57 @@ func TestStringLengthOmitSpacesFailure(t *testing.T) {
 	}
 }
 
+func TestRegexAcceptsStringPattern(t *testing.T) {
+	schema := Object(map[string]fieldValidator{
+		"Name": String().Regex(`^[A-Z][a-z]+$`),
+	})
+
+	input := sample{Name: "jane"}
+	if err := schema.Validate(input); err == nil {
+		t.Fatalf("expected regex string pattern validation to fail")
+	}
+}
+
+func TestTypedNumberValidators(t *testing.T) {
+	schema := Object(map[string]fieldValidator{
+		"Small":    Int8().Max(10),
+		"Medium":   Int16().Min(2),
+		"Large":    Int32().Max(1000),
+		"Huge":     Int64().Min(1000),
+		"Unsigned": Uint().Min(1),
+		"Tiny":     Uint8().Max(20),
+		"Wide":     Uint16().Min(5),
+		"Broader":  Uint32().Max(50),
+		"Big":      Uint64().Min(2),
+		"F32":      Float32().Max(10.5),
+		"F64":      Float64().Min(1.25),
+	})
+
+	type numeric struct {
+		Small    int8
+		Medium   int16
+		Large    int32
+		Huge     int64
+		Unsigned uint
+		Tiny     uint8
+		Wide     uint16
+		Broader  uint32
+		Big      uint64
+		F32      float32
+		F64      float64
+	}
+
+	input := numeric{Small: 11, Medium: 1, Large: 5000, Huge: 500, Unsigned: 0, Tiny: 21, Wide: 4, Broader: 75, Big: 1, F32: 11, F64: 1.0}
+	if err := schema.Validate(input); err == nil {
+		t.Fatalf("expected typed numeric validators to enforce bounds")
+	}
+
+	valid := numeric{Small: 10, Medium: 2, Large: 1000, Huge: 1000, Unsigned: 2, Tiny: 20, Wide: 5, Broader: 50, Big: 2, F32: 10.5, F64: 1.25}
+	if err := schema.Validate(valid); err != nil {
+		t.Fatalf("expected typed numeric validators to pass valid input: %v", err)
+	}
+}
+
 func TestObjectSchema_UnsignedIntegersDoNotPanic(t *testing.T) {
 	schema := Object(map[string]fieldValidator{
 		"Count": Int().Max(5),
