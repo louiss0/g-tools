@@ -1,9 +1,6 @@
 package structvalidate
 
-import (
-	"regexp"
-	"testing"
-)
+import "testing"
 
 type sample struct {
 	Name     string
@@ -16,11 +13,11 @@ type sample struct {
 
 func TestObjectSchema_StringRegexFailure(t *testing.T) {
 	schema := Object(map[string]fieldValidator{
-		"Email": String().Regex(regexp.MustCompile(`^[^@]+@[^@]+\.[^@]+$`)),
+		"Email": String().Regex(`^[^@]+@[^@]+\.[^@]+$`),
 	})
 
 	input := sample{Name: "Jane", Age: 30, Email: "invalid-email"}
-	if err := schema.Validate(input); err == nil {
+	if err := schema.Parse(input); err == nil {
 		t.Fatalf("expected regex mismatch to produce an error")
 	}
 }
@@ -78,7 +75,7 @@ func TestObjectSchema_PrimitiveValidators(t *testing.T) {
 		Active: true,
 	}
 
-	if err := schema.Validate(input); err != nil {
+	if err := schema.Parse(input); err != nil {
 		t.Fatalf("unexpected validation error: %v", err)
 	}
 }
@@ -89,7 +86,7 @@ func TestObjectSchema_MissingField(t *testing.T) {
 	})
 
 	input := sample{Name: "Jane", Age: 25, Email: "jane@example.com"}
-	if err := schema.Validate(input); err == nil {
+	if err := schema.Parse(input); err == nil {
 		t.Fatalf("expected missing field to produce an error")
 	}
 }
@@ -100,14 +97,14 @@ func TestObjectSchema_OptionalFieldMissing(t *testing.T) {
 	})
 
 	input := sample{Name: "Jane", Age: 25, Email: "jane@example.com"}
-	if err := schema.Validate(input); err != nil {
+	if err := schema.Parse(input); err != nil {
 		t.Fatalf("optional field should be allowed to be missing: %v", err)
 	}
 }
 
 func TestObjectSchema_OptionalFieldValidatedWhenPresent(t *testing.T) {
 	schema := Object(map[string]fieldValidator{
-		"Phone": String().Regex(regexp.MustCompile(`^\\d{10}$`)).Optional(),
+		"Phone": String().Regex(`^\\d{10}$`).Optional(),
 	})
 
 	input := struct {
@@ -115,7 +112,7 @@ func TestObjectSchema_OptionalFieldValidatedWhenPresent(t *testing.T) {
 		Phone string
 	}{sample: sample{Name: "Jane", Age: 25, Email: "jane@example.com"}, Phone: "invalid"}
 
-	if err := schema.Validate(input); err == nil {
+	if err := schema.Parse(input); err == nil {
 		t.Fatalf("expected optional field to be validated when present")
 	}
 }
@@ -126,7 +123,7 @@ func TestStringLengthOmitSpacesByDefault(t *testing.T) {
 	})
 
 	input := sample{Name: "ab cd"}
-	if err := schema.Validate(input); err != nil {
+	if err := schema.Parse(input); err != nil {
 		t.Fatalf("expected validation to ignore spaces in length: %v", err)
 	}
 }
@@ -137,7 +134,7 @@ func TestStringLengthCountsSpacesWhenConfigured(t *testing.T) {
 	})
 
 	input := sample{Name: "a b c"}
-	if err := schema.Validate(input); err == nil {
+	if err := schema.Parse(input); err == nil {
 		t.Fatalf("expected length check to count spaces and fail")
 	}
 }
@@ -148,7 +145,7 @@ func TestStringEmailValidation(t *testing.T) {
 	})
 
 	input := sample{Email: "not-an-email"}
-	if err := schema.Validate(input); err == nil {
+	if err := schema.Parse(input); err == nil {
 		t.Fatalf("expected email validation to fail")
 	}
 }
@@ -159,7 +156,7 @@ func TestStringUUIDValidation(t *testing.T) {
 	})
 
 	input := sample{UserID: "1234"}
-	if err := schema.Validate(input); err == nil {
+	if err := schema.Parse(input); err == nil {
 		t.Fatalf("expected UUID validation to fail")
 	}
 }
@@ -170,7 +167,7 @@ func TestStringSemverValidation(t *testing.T) {
 	})
 
 	input := sample{Version: "v1.2.3-beta+build"}
-	if err := schema.Validate(input); err != nil {
+	if err := schema.Parse(input); err != nil {
 		t.Fatalf("expected semantic version to pass validation: %v", err)
 	}
 }
@@ -181,7 +178,7 @@ func TestStringLengthOmitSpacesFailure(t *testing.T) {
 	})
 
 	input := sample{Nickname: "a b"}
-	if err := schema.Validate(input); err == nil {
+	if err := schema.Parse(input); err == nil {
 		t.Fatalf("expected validation to fail when non-space length is too short")
 	}
 }
@@ -192,7 +189,7 @@ func TestRegexAcceptsStringPattern(t *testing.T) {
 	})
 
 	input := sample{Name: "jane"}
-	if err := schema.Validate(input); err == nil {
+	if err := schema.Parse(input); err == nil {
 		t.Fatalf("expected regex string pattern validation to fail")
 	}
 }
@@ -227,12 +224,12 @@ func TestTypedNumberValidators(t *testing.T) {
 	}
 
 	input := numeric{Small: 11, Medium: 1, Large: 5000, Huge: 500, Unsigned: 0, Tiny: 21, Wide: 4, Broader: 75, Big: 1, F32: 11, F64: 1.0}
-	if err := schema.Validate(input); err == nil {
+	if err := schema.Parse(input); err == nil {
 		t.Fatalf("expected typed numeric validators to enforce bounds")
 	}
 
 	valid := numeric{Small: 10, Medium: 2, Large: 1000, Huge: 1000, Unsigned: 2, Tiny: 20, Wide: 5, Broader: 50, Big: 2, F32: 10.5, F64: 1.25}
-	if err := schema.Validate(valid); err != nil {
+	if err := schema.Parse(valid); err != nil {
 		t.Fatalf("expected typed numeric validators to pass valid input: %v", err)
 	}
 }
@@ -249,7 +246,7 @@ func TestObjectSchema_UnsignedIntegersDoNotPanic(t *testing.T) {
 	recovered, err := func() (any, error) {
 		var rec any
 		defer func() { rec = recover() }()
-		err := schema.Validate(unsignedSample{Count: 10})
+		err := schema.Parse(unsignedSample{Count: 10})
 		return rec, err
 	}()
 

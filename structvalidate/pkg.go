@@ -37,17 +37,17 @@ type ObjectSchema struct {
 //
 // schema := Object(map[string]Field{
 // "Name":  String().NonEmpty(),
-// "Email": String().Regex(regexp.MustCompile(`^[^@]+@[^@]+$`)),
+// "Email": String().Regex(`^[^@]+@[^@]+$`),
 // "Age":   Int().Min(18),
 // })
 func Object(fields map[string]fieldValidator) *ObjectSchema {
 	return &ObjectSchema{fields: fields}
 }
 
-// Validate checks the provided struct (or pointer to struct) against the schema.
+// validate checks the provided struct (or pointer to struct) against the schema.
 // It returns an error describing the first validation failure or nil if the input satisfies
 // all field requirements.
-func (s *ObjectSchema) Validate(input any) error {
+func (s *ObjectSchema) validate(input any) error {
 	if s == nil {
 		return validationError("validation failed: schema is nil")
 	}
@@ -71,13 +71,13 @@ func (s *ObjectSchema) Validate(input any) error {
 	for fieldName, validator := range s.fields {
 		field := value.FieldByName(fieldName)
 		if !field.IsValid() {
-			if validator.IsOptional() {
+			if validator.isOptional() {
 				continue
 			}
 			return validationError("validation failed: missing field %q", fieldName)
 		}
 
-		if err := validator.Validate(fieldName, field); err != nil {
+		if err := validator.validate(fieldName, field); err != nil {
 			return err
 		}
 	}
@@ -87,7 +87,7 @@ func (s *ObjectSchema) Validate(input any) error {
 
 // Parse validates the input and returns a ParseError when validation fails.
 func (s *ObjectSchema) Parse(input any) *ParseError {
-	if err := s.Validate(input); err != nil {
+	if err := s.validate(input); err != nil {
 		return &ParseError{err: errors.New(err.Error())}
 	}
 	return nil
@@ -101,8 +101,8 @@ func (s *ObjectSchema) MustParse(input any) {
 }
 
 type fieldValidator interface {
-	Validate(fieldName string, value reflect.Value) error
-	IsOptional() bool
+	validate(fieldName string, value reflect.Value) error
+	isOptional() bool
 }
 
 // StringSchema validates string fields with optional requirements such as non-empty or regex constraints.
@@ -133,17 +133,9 @@ func (s *StringSchema) Optional() *StringSchema {
 }
 
 // Regex attaches a regular expression requirement to the string validator.
-// It accepts either a compiled regexp or a pattern string that will be compiled
-// with regexp.MustCompile.
-func (s *StringSchema) Regex(pattern any) *StringSchema {
-	switch exp := pattern.(type) {
-	case *regexp.Regexp:
-		s.addPattern("required pattern", exp)
-	case string:
-		s.addPattern("required pattern", regexp.MustCompile(exp))
-	default:
-		panic("unsupported regex pattern type")
-	}
+// The provided pattern will be compiled with regexp.MustCompile.
+func (s *StringSchema) Regex(pattern string) *StringSchema {
+	s.addPattern("required pattern", regexp.MustCompile(pattern))
 	return s
 }
 
@@ -187,8 +179,8 @@ func (s *StringSchema) addPattern(name string, exp *regexp.Regexp) {
 	s.patterns = append(s.patterns, stringPattern{name: name, exp: exp})
 }
 
-// Validate implements fieldValidator for StringSchema.
-func (s *StringSchema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for StringSchema.
+func (s *StringSchema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.String {
 		return validationError("validation failed: field %q expected string, got %s", fieldName, value.Kind())
 	}
@@ -219,8 +211,8 @@ func (s *StringSchema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the string field may be omitted.
-func (s *StringSchema) IsOptional() bool { return s.optional }
+// isOptional reports whether the string field may be omitted.
+func (s *StringSchema) isOptional() bool { return s.optional }
 
 type stringPattern struct {
 	name string
@@ -257,8 +249,8 @@ func (s *IntSchema) Optional() *IntSchema {
 	return s
 }
 
-// Validate implements fieldValidator for IntSchema.
-func (s *IntSchema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for IntSchema.
+func (s *IntSchema) validate(fieldName string, value reflect.Value) error {
 	kind := value.Kind()
 	if !isIntKind(kind) {
 		return validationError("validation failed: field %q expected integer, got %s", fieldName, value.Kind())
@@ -295,8 +287,8 @@ func (s *IntSchema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the integer field may be omitted.
-func (s *IntSchema) IsOptional() bool { return s.optional }
+// isOptional reports whether the integer field may be omitted.
+func (s *IntSchema) isOptional() bool { return s.optional }
 
 // Int8Schema validates int8 fields with optional minimum and maximum bounds.
 type Int8Schema struct {
@@ -326,8 +318,8 @@ func (s *Int8Schema) Optional() *Int8Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Int8Schema.
-func (s *Int8Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Int8Schema.
+func (s *Int8Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Int8 {
 		return validationError("validation failed: field %q expected int8, got %s", fieldName, value.Kind())
 	}
@@ -343,8 +335,8 @@ func (s *Int8Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the int8 field may be omitted.
-func (s *Int8Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the int8 field may be omitted.
+func (s *Int8Schema) isOptional() bool { return s.optional }
 
 // Int16Schema validates int16 fields with optional minimum and maximum bounds.
 type Int16Schema struct {
@@ -374,8 +366,8 @@ func (s *Int16Schema) Optional() *Int16Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Int16Schema.
-func (s *Int16Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Int16Schema.
+func (s *Int16Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Int16 {
 		return validationError("validation failed: field %q expected int16, got %s", fieldName, value.Kind())
 	}
@@ -391,8 +383,8 @@ func (s *Int16Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the int16 field may be omitted.
-func (s *Int16Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the int16 field may be omitted.
+func (s *Int16Schema) isOptional() bool { return s.optional }
 
 // Int32Schema validates int32 fields with optional minimum and maximum bounds.
 type Int32Schema struct {
@@ -422,8 +414,8 @@ func (s *Int32Schema) Optional() *Int32Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Int32Schema.
-func (s *Int32Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Int32Schema.
+func (s *Int32Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Int32 {
 		return validationError("validation failed: field %q expected int32, got %s", fieldName, value.Kind())
 	}
@@ -439,8 +431,8 @@ func (s *Int32Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the int32 field may be omitted.
-func (s *Int32Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the int32 field may be omitted.
+func (s *Int32Schema) isOptional() bool { return s.optional }
 
 // Int64Schema validates int64 fields with optional minimum and maximum bounds.
 type Int64Schema struct {
@@ -470,8 +462,8 @@ func (s *Int64Schema) Optional() *Int64Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Int64Schema.
-func (s *Int64Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Int64Schema.
+func (s *Int64Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Int64 {
 		return validationError("validation failed: field %q expected int64, got %s", fieldName, value.Kind())
 	}
@@ -487,8 +479,8 @@ func (s *Int64Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the int64 field may be omitted.
-func (s *Int64Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the int64 field may be omitted.
+func (s *Int64Schema) isOptional() bool { return s.optional }
 
 // UintSchema validates uint fields with optional minimum and maximum bounds.
 type UintSchema struct {
@@ -518,8 +510,8 @@ func (s *UintSchema) Optional() *UintSchema {
 	return s
 }
 
-// Validate implements fieldValidator for UintSchema.
-func (s *UintSchema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for UintSchema.
+func (s *UintSchema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Uint {
 		return validationError("validation failed: field %q expected uint, got %s", fieldName, value.Kind())
 	}
@@ -535,8 +527,8 @@ func (s *UintSchema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the uint field may be omitted.
-func (s *UintSchema) IsOptional() bool { return s.optional }
+// isOptional reports whether the uint field may be omitted.
+func (s *UintSchema) isOptional() bool { return s.optional }
 
 // Uint8Schema validates uint8 fields with optional minimum and maximum bounds.
 type Uint8Schema struct {
@@ -566,8 +558,8 @@ func (s *Uint8Schema) Optional() *Uint8Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Uint8Schema.
-func (s *Uint8Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Uint8Schema.
+func (s *Uint8Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Uint8 {
 		return validationError("validation failed: field %q expected uint8, got %s", fieldName, value.Kind())
 	}
@@ -583,8 +575,8 @@ func (s *Uint8Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the uint8 field may be omitted.
-func (s *Uint8Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the uint8 field may be omitted.
+func (s *Uint8Schema) isOptional() bool { return s.optional }
 
 // Uint16Schema validates uint16 fields with optional minimum and maximum bounds.
 type Uint16Schema struct {
@@ -614,8 +606,8 @@ func (s *Uint16Schema) Optional() *Uint16Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Uint16Schema.
-func (s *Uint16Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Uint16Schema.
+func (s *Uint16Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Uint16 {
 		return validationError("validation failed: field %q expected uint16, got %s", fieldName, value.Kind())
 	}
@@ -631,8 +623,8 @@ func (s *Uint16Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the uint16 field may be omitted.
-func (s *Uint16Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the uint16 field may be omitted.
+func (s *Uint16Schema) isOptional() bool { return s.optional }
 
 // Uint32Schema validates uint32 fields with optional minimum and maximum bounds.
 type Uint32Schema struct {
@@ -662,8 +654,8 @@ func (s *Uint32Schema) Optional() *Uint32Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Uint32Schema.
-func (s *Uint32Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Uint32Schema.
+func (s *Uint32Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Uint32 {
 		return validationError("validation failed: field %q expected uint32, got %s", fieldName, value.Kind())
 	}
@@ -679,8 +671,8 @@ func (s *Uint32Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the uint32 field may be omitted.
-func (s *Uint32Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the uint32 field may be omitted.
+func (s *Uint32Schema) isOptional() bool { return s.optional }
 
 // Uint64Schema validates uint64 fields with optional minimum and maximum bounds.
 type Uint64Schema struct {
@@ -710,8 +702,8 @@ func (s *Uint64Schema) Optional() *Uint64Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Uint64Schema.
-func (s *Uint64Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Uint64Schema.
+func (s *Uint64Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Uint64 {
 		return validationError("validation failed: field %q expected uint64, got %s", fieldName, value.Kind())
 	}
@@ -727,8 +719,8 @@ func (s *Uint64Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the uint64 field may be omitted.
-func (s *Uint64Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the uint64 field may be omitted.
+func (s *Uint64Schema) isOptional() bool { return s.optional }
 
 // FloatSchema validates floating point fields with optional minimum and maximum bounds.
 type FloatSchema struct {
@@ -760,8 +752,8 @@ func (s *FloatSchema) Optional() *FloatSchema {
 	return s
 }
 
-// Validate implements fieldValidator for FloatSchema.
-func (s *FloatSchema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for FloatSchema.
+func (s *FloatSchema) validate(fieldName string, value reflect.Value) error {
 	if !isFloatKind(value.Kind()) {
 		return validationError("validation failed: field %q expected float, got %s", fieldName, value.Kind())
 	}
@@ -777,8 +769,8 @@ func (s *FloatSchema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the float field may be omitted.
-func (s *FloatSchema) IsOptional() bool { return s.optional }
+// isOptional reports whether the float field may be omitted.
+func (s *FloatSchema) isOptional() bool { return s.optional }
 
 // Float32Schema validates float32 fields with optional minimum and maximum bounds.
 type Float32Schema struct {
@@ -808,8 +800,8 @@ func (s *Float32Schema) Optional() *Float32Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Float32Schema.
-func (s *Float32Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Float32Schema.
+func (s *Float32Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Float32 {
 		return validationError("validation failed: field %q expected float32, got %s", fieldName, value.Kind())
 	}
@@ -825,8 +817,8 @@ func (s *Float32Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the float32 field may be omitted.
-func (s *Float32Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the float32 field may be omitted.
+func (s *Float32Schema) isOptional() bool { return s.optional }
 
 // Float64Schema validates float64 fields with optional minimum and maximum bounds.
 type Float64Schema struct {
@@ -856,8 +848,8 @@ func (s *Float64Schema) Optional() *Float64Schema {
 	return s
 }
 
-// Validate implements fieldValidator for Float64Schema.
-func (s *Float64Schema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for Float64Schema.
+func (s *Float64Schema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Float64 {
 		return validationError("validation failed: field %q expected float64, got %s", fieldName, value.Kind())
 	}
@@ -873,8 +865,8 @@ func (s *Float64Schema) Validate(fieldName string, value reflect.Value) error {
 	return nil
 }
 
-// IsOptional reports whether the float64 field may be omitted.
-func (s *Float64Schema) IsOptional() bool { return s.optional }
+// isOptional reports whether the float64 field may be omitted.
+func (s *Float64Schema) isOptional() bool { return s.optional }
 
 // BoolSchema validates boolean fields.
 type BoolSchema struct {
@@ -890,16 +882,16 @@ func (b *BoolSchema) Optional() *BoolSchema {
 	return b
 }
 
-// Validate implements fieldValidator for BoolSchema.
-func (b *BoolSchema) Validate(fieldName string, value reflect.Value) error {
+// validate implements fieldValidator for BoolSchema.
+func (b *BoolSchema) validate(fieldName string, value reflect.Value) error {
 	if value.Kind() != reflect.Bool {
 		return validationError("validation failed: field %q expected bool, got %s", fieldName, value.Kind())
 	}
 	return nil
 }
 
-// IsOptional reports whether the boolean field may be omitted.
-func (b *BoolSchema) IsOptional() bool { return b.optional }
+// isOptional reports whether the boolean field may be omitted.
+func (b *BoolSchema) isOptional() bool { return b.optional }
 
 func isIntKind(kind reflect.Kind) bool {
 	return isSignedIntKind(kind) || isUintKind(kind)
