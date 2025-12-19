@@ -8,6 +8,17 @@ import (
 	"strings"
 )
 
+// ParseError wraps validation failures for the Parse helper.
+type ParseError struct {
+	err error
+}
+
+// Error implements the error interface.
+func (e *ParseError) Error() string { return e.err.Error() }
+
+// Unwrap exposes the underlying validation error.
+func (e *ParseError) Unwrap() error { return e.err }
+
 // ObjectSchema describes the expected shape of a struct in a Zod-inspired, fluent API.
 // It validates the presence of required fields, their types, and any additional
 // constraints such as regex checks for strings or numeric ranges for integers and floats.
@@ -66,6 +77,21 @@ func (s *ObjectSchema) Validate(input any) error {
 	}
 
 	return nil
+}
+
+// Parse validates the input and returns a ParseError when validation fails.
+func (s *ObjectSchema) Parse(input any) *ParseError {
+	if err := s.Validate(input); err != nil {
+		return &ParseError{err: err}
+	}
+	return nil
+}
+
+// MustParse validates the input and panics if validation fails.
+func (s *ObjectSchema) MustParse(input any) {
+	if err := s.Parse(input); err != nil {
+		panic(err)
+	}
 }
 
 type fieldValidator interface {
@@ -218,16 +244,37 @@ func (s *IntSchema) Optional() *IntSchema {
 
 // Validate implements fieldValidator for IntSchema.
 func (s *IntSchema) Validate(fieldName string, value reflect.Value) error {
-	if !isIntKind(value.Kind()) {
+	kind := value.Kind()
+	if !isIntKind(kind) {
 		return fmt.Errorf("validation failed: field %q expected integer, got %s", fieldName, value.Kind())
 	}
 
-	intVal := value.Int()
-	if s.min != nil && intVal < *s.min {
-		return fmt.Errorf("validation failed: field %q must be >= %d", fieldName, *s.min)
+	if isSignedIntKind(kind) {
+		intVal := value.Int()
+		if s.min != nil && intVal < *s.min {
+			return fmt.Errorf("validation failed: field %q must be >= %d", fieldName, *s.min)
+		}
+		if s.max != nil && intVal > *s.max {
+			return fmt.Errorf("validation failed: field %q must be <= %d", fieldName, *s.max)
+		}
+		return nil
 	}
-	if s.max != nil && intVal > *s.max {
-		return fmt.Errorf("validation failed: field %q must be <= %d", fieldName, *s.max)
+
+	uintVal := value.Uint()
+	if s.min != nil {
+		if *s.min < 0 {
+			// unsigned values are always >= negative minimums
+		} else if uintVal < uint64(*s.min) {
+			return fmt.Errorf("validation failed: field %q must be >= %d", fieldName, *s.min)
+		}
+	}
+	if s.max != nil {
+		if *s.max < 0 {
+			return fmt.Errorf("validation failed: field %q must be <= %d", fieldName, *s.max)
+		}
+		if uintVal > uint64(*s.max) {
+			return fmt.Errorf("validation failed: field %q must be <= %d", fieldName, *s.max)
+		}
 	}
 
 	return nil
@@ -312,9 +359,21 @@ func (b *BoolSchema) Validate(fieldName string, value reflect.Value) error {
 func (b *BoolSchema) IsOptional() bool { return b.optional }
 
 func isIntKind(kind reflect.Kind) bool {
+	return isSignedIntKind(kind) || isUintKind(kind)
+}
+
+func isSignedIntKind(kind reflect.Kind) bool {
 	switch kind {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return true
+	default:
+		return false
+	}
+}
+
+func isUintKind(kind reflect.Kind) bool {
+	switch kind {
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return true
 	default:
 		return false

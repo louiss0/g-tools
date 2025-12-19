@@ -25,6 +25,39 @@ func TestObjectSchema_StringRegexFailure(t *testing.T) {
 	}
 }
 
+func TestObjectSchema_ParseAndMustParse(t *testing.T) {
+	schema := Object(map[string]fieldValidator{
+		"Age": Int().Min(21),
+	})
+
+	type user struct {
+		Age int
+	}
+
+	if err := schema.Parse(user{Age: 25}); err != nil {
+		t.Fatalf("expected parse to succeed, got %v", err)
+	}
+
+	parseErr := schema.Parse(user{Age: 18})
+	if parseErr == nil {
+		t.Fatalf("expected parse to return a ParseError")
+	}
+
+	if _, ok := any(parseErr).(*ParseError); !ok {
+		t.Fatalf("expected error to be a ParseError, got %T", parseErr)
+	}
+
+	deferred := func() (recovered any) {
+		defer func() { recovered = recover() }()
+		schema.MustParse(user{Age: 18})
+		return nil
+	}()
+
+	if deferred == nil {
+		t.Fatalf("expected MustParse to panic on validation error")
+	}
+}
+
 func TestObjectSchema_PrimitiveValidators(t *testing.T) {
 	schema := Object(map[string]fieldValidator{
 		"Name":   String().NonEmpty(),
@@ -150,5 +183,30 @@ func TestStringLengthOmitSpacesFailure(t *testing.T) {
 	input := sample{Nickname: "a b"}
 	if err := schema.Validate(input); err == nil {
 		t.Fatalf("expected validation to fail when non-space length is too short")
+	}
+}
+
+func TestObjectSchema_UnsignedIntegersDoNotPanic(t *testing.T) {
+	schema := Object(map[string]fieldValidator{
+		"Count": Int().Max(5),
+	})
+
+	type unsignedSample struct {
+		Count uint
+	}
+
+	recovered, err := func() (any, error) {
+		var rec any
+		defer func() { rec = recover() }()
+		err := schema.Validate(unsignedSample{Count: 10})
+		return rec, err
+	}()
+
+	if recovered != nil {
+		t.Fatalf("expected validation to return an error instead of panicking: %v", recovered)
+	}
+
+	if err == nil {
+		t.Fatalf("expected validation to fail for value exceeding max")
 	}
 }
