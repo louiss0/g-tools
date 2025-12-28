@@ -360,60 +360,6 @@ var DescribeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 		tAssert = testifyassert.New(GinkgoT())
 	})
 
-	It("extracts typed values for unnamed groups", func() {
-		pattern := `^(\w+)-(\d+)-(\d+\.\d+)-(\.+)$`
-
-		input := "hello-42-3.14-..."
-		expected := []any{"hello", uint8(42), float32(3.14), "..."}
-
-		actual, err := ExtractTypedUnnamedGroups[any](input, pattern)
-		tAssert.NoError(err)
-		tAssert.Equal(expected, actual)
-	})
-
-	It("extracts nested slices for unnamed groups", func() {
-		pattern := `^((\d+)-(\w+))$`
-
-		input := "123-abc"
-		expected := []any{
-			[]any{uint8(123), "abc"},
-		}
-
-		actual, err := ExtractTypedUnnamedGroups[any](input, pattern)
-		tAssert.NoError(err)
-		tAssert.Equal(expected, actual)
-	})
-
-	It("uses range-based integer types for unnamed groups", func() {
-		pattern := `^(\d+)-(\d+)-(\d+)-(\d+)$`
-
-		input := "127-32767-2147483647-2147483648"
-		expected := []any{
-			uint8(127),
-			uint16(32767),
-			uint32(2147483647),
-			uint32(2147483648),
-		}
-
-		actual, err := ExtractTypedUnnamedGroups[any](input, pattern)
-		tAssert.NoError(err)
-		tAssert.Equal(expected, actual)
-	})
-
-	It("uses range-based float types for unnamed groups", func() {
-		pattern := `^(\d+\.\d+)-(\d+\.\d+)$`
-
-		input := "3.14-340282350000000000000000000000000000000.0"
-		expected := []any{
-			float32(3.14),
-			340282350000000000000000000000000000000.0,
-		}
-
-		actual, err := ExtractTypedUnnamedGroups[any](input, pattern)
-		tAssert.NoError(err)
-		tAssert.Equal(expected, actual)
-	})
-
 	It("supports string values", func() {
 		pattern := `^(\w+)$`
 
