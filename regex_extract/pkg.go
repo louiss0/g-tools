@@ -170,7 +170,7 @@ func ExtractToStruct[T any](input string, pattern string) (T, error) {
 	return structValue.Interface().(T), nil
 }
 
-func ExtractTypedUnnamedGroups(input string, pattern string) ([]any, error) {
+func ExtractTypedUnnamedGroups[T any](input string, pattern string) ([]T, error) {
 	regex, err := compileRegex(pattern)
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func ExtractTypedUnnamedGroups(input string, pattern string) ([]any, error) {
 	}
 
 	captureTree := parseCaptureTree(regex.String())
-	extracted := make([]any, 0, len(captureTree))
+	extracted := make([]T, 0, len(captureTree))
 
 	for _, node := range captureTree {
 		value, include, err := buildUnnamedValue(node, submatches)
@@ -190,7 +190,11 @@ func ExtractTypedUnnamedGroups(input string, pattern string) ([]any, error) {
 			return nil, err
 		}
 		if include {
-			extracted = append(extracted, value)
+			converted, err := convertUnnamedGroupValue[T](value)
+			if err != nil {
+				return nil, err
+			}
+			extracted = append(extracted, converted)
 		}
 	}
 
@@ -564,6 +568,104 @@ func convertNamedGroupValue[T any](value any) (T, error) {
 	}
 
 	return zero, fmt.Errorf("%w: %v", ErrUnexpectedGroupValue, value)
+}
+
+func convertUnnamedGroupValue[T any](value any) (T, error) {
+	var zero T
+	targetType := reflect.TypeOf((*T)(nil)).Elem()
+	converted, err := convertValueToType(value, targetType)
+	if err != nil {
+		return zero, err
+	}
+
+	return converted.Interface().(T), nil
+}
+
+func convertValueToType(value any, targetType reflect.Type) (reflect.Value, error) {
+	if value == nil {
+		return reflect.Zero(targetType), nil
+	}
+
+	valueValue := reflect.ValueOf(value)
+
+	if targetType.Kind() == reflect.Interface {
+		if valueValue.Type().Implements(targetType) {
+			return valueValue.Convert(targetType), nil
+		}
+		return reflect.Zero(targetType), fmt.Errorf("%w: %v", ErrUnexpectedGroupValue, value)
+	}
+
+	if targetType.Kind() == reflect.Pointer {
+		converted, err := convertValueToType(value, targetType.Elem())
+		if err != nil {
+			return reflect.Zero(targetType), err
+		}
+		pointer := reflect.New(targetType.Elem())
+		pointer.Elem().Set(converted)
+		return pointer, nil
+	}
+
+	if targetType.Kind() == reflect.Struct {
+		if valueValue.Kind() != reflect.Slice && valueValue.Kind() != reflect.Array {
+			return reflect.Zero(targetType), fmt.Errorf("%w: %v", ErrUnexpectedGroupValue, value)
+		}
+		return convertSliceToStruct(valueValue, targetType)
+	}
+
+	if targetType.Kind() == reflect.Slice {
+		if valueValue.Kind() != reflect.Slice && valueValue.Kind() != reflect.Array {
+			return reflect.Zero(targetType), fmt.Errorf("%w: %v", ErrUnexpectedGroupValue, value)
+		}
+		return convertSliceToSlice(valueValue, targetType)
+	}
+
+	if valueValue.Type().AssignableTo(targetType) {
+		return valueValue.Convert(targetType), nil
+	}
+	if valueValue.Type().ConvertibleTo(targetType) {
+		return valueValue.Convert(targetType), nil
+	}
+
+	return reflect.Zero(targetType), fmt.Errorf("%w: %v", ErrUnexpectedGroupValue, value)
+}
+
+func convertSliceToStruct(values reflect.Value, targetType reflect.Type) (reflect.Value, error) {
+	result := reflect.New(targetType).Elem()
+	fieldCount := targetType.NumField()
+	if values.Len() != fieldCount {
+		return reflect.Zero(targetType), fmt.Errorf("%w: %v", ErrUnexpectedGroupValue, values.Interface())
+	}
+
+	for index := 0; index < fieldCount; index++ {
+		field := targetType.Field(index)
+		fieldValue := result.Field(index)
+		if !fieldValue.CanSet() || !field.IsExported() {
+			return reflect.Zero(targetType), fmt.Errorf("%w: %s", ErrExpectedStruct, field.Name)
+		}
+
+		converted, err := convertValueToType(values.Index(index).Interface(), field.Type)
+		if err != nil {
+			return reflect.Zero(targetType), err
+		}
+		fieldValue.Set(converted)
+	}
+
+	return result, nil
+}
+
+func convertSliceToSlice(values reflect.Value, targetType reflect.Type) (reflect.Value, error) {
+	elementType := targetType.Elem()
+	converted := reflect.MakeSlice(targetType, values.Len(), values.Len())
+	for index := 0; index < values.Len(); index++ {
+		value := values.Index(index).Interface()
+		convertedValue, err := convertValueToType(value, elementType)
+		if err != nil {
+			return reflect.Zero(targetType), err
+		}
+		converted.Index(index).Set(convertedValue)
+	}
+
+	return converted, nil
 }
 
 func narrowUint(value uint64) any {

@@ -366,7 +366,7 @@ var DescribeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 		input := "hello-42-3.14-..."
 		expected := []any{"hello", uint8(42), float32(3.14), "..."}
 
-		actual, err := ExtractTypedUnnamedGroups(input, pattern)
+		actual, err := ExtractTypedUnnamedGroups[any](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -379,7 +379,7 @@ var DescribeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 			[]any{uint8(123), "abc"},
 		}
 
-		actual, err := ExtractTypedUnnamedGroups(input, pattern)
+		actual, err := ExtractTypedUnnamedGroups[any](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -395,7 +395,7 @@ var DescribeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 			uint32(2147483648),
 		}
 
-		actual, err := ExtractTypedUnnamedGroups(input, pattern)
+		actual, err := ExtractTypedUnnamedGroups[any](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -409,7 +409,223 @@ var DescribeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 			340282350000000000000000000000000000000.0,
 		}
 
-		actual, err := ExtractTypedUnnamedGroups(input, pattern)
+		actual, err := ExtractTypedUnnamedGroups[any](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports string values", func() {
+		pattern := `^(\w+)$`
+
+		input := "hello"
+		expected := []string{"hello"}
+
+		actual, err := ExtractTypedUnnamedGroups[string](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int values", func() {
+		pattern := `^(\d+)$`
+
+		input := "42"
+		expected := []int{42}
+
+		actual, err := ExtractTypedUnnamedGroups[int](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int8 values", func() {
+		pattern := `^(\d+)$`
+
+		input := "120"
+		expected := []int8{int8(120)}
+
+		actual, err := ExtractTypedUnnamedGroups[int8](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int16 values", func() {
+		pattern := `^(\d+)$`
+
+		input := "300"
+		expected := []int16{int16(300)}
+
+		actual, err := ExtractTypedUnnamedGroups[int16](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int32 values", func() {
+		pattern := `^(\d+)$`
+
+		input := "70000"
+		expected := []int32{int32(70000)}
+
+		actual, err := ExtractTypedUnnamedGroups[int32](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int64 values", func() {
+		pattern := `^(\d+)$`
+
+		input := "4294967296"
+		expected := []int64{int64(4294967296)}
+
+		actual, err := ExtractTypedUnnamedGroups[int64](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint values", func() {
+		pattern := `^(\d+)$`
+
+		input := "42"
+		expected := []uint{42}
+
+		actual, err := ExtractTypedUnnamedGroups[uint](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint8 values", func() {
+		pattern := `^(\d+)$`
+
+		input := "42"
+		expected := []uint8{uint8(42)}
+
+		actual, err := ExtractTypedUnnamedGroups[uint8](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint16 values", func() {
+		pattern := `^(\d+)$`
+
+		input := "300"
+		expected := []uint16{uint16(300)}
+
+		actual, err := ExtractTypedUnnamedGroups[uint16](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint32 values", func() {
+		pattern := `^(\d+)$`
+
+		input := "70000"
+		expected := []uint32{uint32(70000)}
+
+		actual, err := ExtractTypedUnnamedGroups[uint32](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint64 values", func() {
+		pattern := `^(\d+)$`
+
+		input := "4294967296"
+		expected := []uint64{uint64(4294967296)}
+
+		actual, err := ExtractTypedUnnamedGroups[uint64](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports float32 values", func() {
+		pattern := `^(\d+\.\d+)$`
+
+		input := "2.5"
+		expected := []float32{float32(2.5)}
+
+		actual, err := ExtractTypedUnnamedGroups[float32](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports float64 values", func() {
+		pattern := `^(\d+\.\d+)$`
+
+		input := "340282350000000000000000000000000000000.0"
+		expected := []float64{340282350000000000000000000000000000000.0}
+
+		actual, err := ExtractTypedUnnamedGroups[float64](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports nested slices", func() {
+		pattern := `^((\d+)-(\w+))$`
+
+		input := "123-abc"
+		expected := [][]any{
+			{uint8(123), "abc"},
+		}
+
+		actual, err := ExtractTypedUnnamedGroups[[]any](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports deeper nested slices", func() {
+		pattern := `^(((\d+)-(\w+)))$`
+
+		input := "123-abc"
+		expected := []([][]any){
+			{
+				{uint8(123), "abc"},
+			},
+		}
+
+		actual, err := ExtractTypedUnnamedGroups[[][]any](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports struct values from nested captures", func() {
+		pattern := `^((\d+)-(\w+))$`
+
+		input := "123-abc"
+		type Pair struct {
+			Number uint8
+			Word   string
+		}
+		expected := []Pair{
+			{
+				Number: uint8(123),
+				Word:   "abc",
+			},
+		}
+
+		actual, err := ExtractTypedUnnamedGroups[Pair](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports nested struct values from nested captures", func() {
+		pattern := `^(((\d+)-(\w+)))$`
+
+		input := "123-abc"
+		type Pair struct {
+			Number uint8
+			Word   string
+		}
+		type Outer struct {
+			Inner Pair
+		}
+		expected := []Outer{
+			{
+				Inner: Pair{
+					Number: uint8(123),
+					Word:   "abc",
+				},
+			},
+		}
+
+		actual, err := ExtractTypedUnnamedGroups[Outer](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -613,7 +829,7 @@ var DescribeInvalidRegex = Describe("InvalidRegex", func() {
 	})
 
 	It("returns an error for ExtractTypedUnnamedGroups", func() {
-		_, err := ExtractTypedUnnamedGroups("value", "(")
+		_, err := ExtractTypedUnnamedGroups[any]("value", "(")
 		tAssert.ErrorIs(err, ErrInvalidRegex)
 	})
 })
