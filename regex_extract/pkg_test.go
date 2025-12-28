@@ -184,6 +184,175 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 		_, err := ExtractTypedNamedGroups[uint8](input, pattern)
 		tAssert.ErrorIs(err, ErrUnexpectedGroupValue)
 	})
+
+	It("supports string values", func() {
+		pattern := `^(?P<word>\w+)$`
+
+		input := "hello"
+		expected := map[string]string{
+			"word": "hello",
+		}
+
+		actual, err := ExtractTypedNamedGroups[string](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "42"
+		expected := map[string]int{
+			"count": 42,
+		}
+
+		actual, err := ExtractTypedNamedGroups[int](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int8 values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "120"
+		expected := map[string]int8{
+			"count": int8(120),
+		}
+
+		actual, err := ExtractTypedNamedGroups[int8](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int16 values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "300"
+		expected := map[string]int16{
+			"count": int16(300),
+		}
+
+		actual, err := ExtractTypedNamedGroups[int16](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int32 values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "70000"
+		expected := map[string]int32{
+			"count": int32(70000),
+		}
+
+		actual, err := ExtractTypedNamedGroups[int32](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports int64 values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "4294967296"
+		expected := map[string]int64{
+			"count": int64(4294967296),
+		}
+
+		actual, err := ExtractTypedNamedGroups[int64](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "42"
+		expected := map[string]uint{
+			"count": 42,
+		}
+
+		actual, err := ExtractTypedNamedGroups[uint](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint8 values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "42"
+		expected := map[string]uint8{
+			"count": uint8(42),
+		}
+
+		actual, err := ExtractTypedNamedGroups[uint8](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint16 values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "300"
+		expected := map[string]uint16{
+			"count": uint16(300),
+		}
+
+		actual, err := ExtractTypedNamedGroups[uint16](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint32 values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "70000"
+		expected := map[string]uint32{
+			"count": uint32(70000),
+		}
+
+		actual, err := ExtractTypedNamedGroups[uint32](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports uint64 values", func() {
+		pattern := `^(?P<count>\d+)$`
+
+		input := "4294967296"
+		expected := map[string]uint64{
+			"count": uint64(4294967296),
+		}
+
+		actual, err := ExtractTypedNamedGroups[uint64](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports float32 values", func() {
+		pattern := `^(?P<value>\d+\.\d+)$`
+
+		input := "2.5"
+		expected := map[string]float32{
+			"value": float32(2.5),
+		}
+
+		actual, err := ExtractTypedNamedGroups[float32](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("supports float64 values", func() {
+		pattern := `^(?P<value>\d+\.\d+)$`
+
+		input := "340282350000000000000000000000000000000.0"
+		expected := map[string]float64{
+			"value": 340282350000000000000000000000000000000.0,
+		}
+
+		actual, err := ExtractTypedNamedGroups[float64](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
 })
 
 var DescribeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", func() {
