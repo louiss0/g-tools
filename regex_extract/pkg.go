@@ -17,9 +17,7 @@ var (
 	ErrNoMatch              = errors.New("regex_extract: no match found")
 	ErrStructType           = errors.New("regex_extract: target must be a struct type")
 	ErrInvalidSliceValue    = errors.New("regex_extract: invalid slice value")
-	ErrExpectedMap          = errors.New("regex_extract: expected map values")
 	ErrExpectedStruct       = errors.New("regex_extract: use ExtractToStruct for struct values")
-	ErrMissingExpectedGroup = errors.New("regex_extract: missing expected group")
 	ErrUnexpectedGroupValue = errors.New("regex_extract: unexpected group value")
 
 	floatPattern = regexp.MustCompile(`^\d+\.\d+$`)
@@ -100,7 +98,7 @@ func ExtractSlice[T SliceValue](input string, pattern string) ([]T, error) {
 	return extracted, nil
 }
 
-func ExtractTypedNamedGroups(input string, pattern string, expected any) (map[string]any, error) {
+func ExtractTypedNamedGroups[T any](input string, pattern string) (map[string]T, error) {
 	regex, err := compileRegex(pattern)
 	if err != nil {
 		return nil, err
@@ -111,9 +109,8 @@ func ExtractTypedNamedGroups(input string, pattern string, expected any) (map[st
 		return nil, ErrNoMatch
 	}
 
-	expectedValues, err := normalizeExpectedMap(expected)
-	if err != nil {
-		return nil, err
+	if isStructType[T]() {
+		return nil, ErrExpectedStruct
 	}
 
 	captureTree := parseCaptureTree(regex.String())
@@ -143,11 +140,7 @@ func ExtractTypedNamedGroups(input string, pattern string, expected any) (map[st
 		extracted[node.name] = value
 	}
 
-	if err := validateExpectedValues(extracted, expectedValues); err != nil {
-		return nil, err
-	}
-
-	return extracted, nil
+	return convertNamedGroupValues[T](extracted)
 }
 
 func ExtractToStruct[T any](input string, pattern string) (T, error) {
@@ -525,85 +518,52 @@ func parseSliceValue[T SliceValue](value string) (T, error) {
 	}
 }
 
-func normalizeExpectedMap(expected any) (map[string]any, error) {
-	if expected == nil {
-		return nil, ErrExpectedMap
-	}
+func isStructType[T any]() bool {
+	targetType := reflect.TypeOf((*T)(nil)).Elem()
+	return targetType.Kind() == reflect.Struct
+}
 
-	expectedValue := reflect.ValueOf(expected)
-	if expectedValue.Kind() == reflect.Struct {
-		return nil, ErrExpectedStruct
-	}
-	if expectedValue.Kind() != reflect.Map || expectedValue.Type().Key().Kind() != reflect.String {
-		return nil, ErrExpectedMap
-	}
-
-	normalized := make(map[string]any, expectedValue.Len())
-	for _, key := range expectedValue.MapKeys() {
-		value := expectedValue.MapIndex(key)
-		normalizedValue, err := normalizeExpectedValue(value)
+func convertNamedGroupValues[T any](values map[string]any) (map[string]T, error) {
+	converted := make(map[string]T, len(values))
+	for key, value := range values {
+		convertedValue, err := convertNamedGroupValue[T](value)
 		if err != nil {
 			return nil, err
 		}
-		normalized[key.String()] = normalizedValue
+		converted[key] = convertedValue
 	}
 
-	return normalized, nil
+	return converted, nil
 }
 
-func normalizeExpectedValue(value reflect.Value) (any, error) {
-	if !value.IsValid() {
-		return nil, nil
+func convertNamedGroupValue[T any](value any) (T, error) {
+	var zero T
+	if value == nil {
+		return zero, nil
 	}
 
-	if value.Kind() == reflect.Struct {
-		return nil, ErrExpectedStruct
+	targetType := reflect.TypeOf((*T)(nil)).Elem()
+	valueValue := reflect.ValueOf(value)
+
+	if targetType.Kind() == reflect.String && valueValue.Kind() != reflect.String {
+		return zero, fmt.Errorf("%w: %v", ErrUnexpectedGroupValue, value)
 	}
 
-	if value.Kind() == reflect.Map {
-		if value.Type().Key().Kind() != reflect.String {
-			return nil, ErrExpectedMap
+	if targetType.Kind() == reflect.Interface {
+		if valueValue.IsValid() && valueValue.Type().Implements(targetType) {
+			return valueValue.Interface().(T), nil
 		}
-
-		normalized := make(map[string]any, value.Len())
-		for _, key := range value.MapKeys() {
-			innerValue, err := normalizeExpectedValue(value.MapIndex(key))
-			if err != nil {
-				return nil, err
-			}
-			normalized[key.String()] = innerValue
-		}
-		return normalized, nil
+		return zero, fmt.Errorf("%w: %v", ErrUnexpectedGroupValue, value)
 	}
 
-	return value.Interface(), nil
-}
-
-func validateExpectedValues(actual map[string]any, expected map[string]any) error {
-	for key, expectedValue := range expected {
-		actualValue, ok := actual[key]
-		if !ok {
-			return fmt.Errorf("%w: %s", ErrMissingExpectedGroup, key)
-		}
-
-		expectedMap, isExpectedMap := expectedValue.(map[string]any)
-		if isExpectedMap {
-			actualMap, ok := actualValue.(map[string]any)
-			if !ok {
-				return fmt.Errorf("%w: %s", ErrUnexpectedGroupValue, key)
-			}
-			if err := validateExpectedValues(actualMap, expectedMap); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if !reflect.DeepEqual(actualValue, expectedValue) {
-			return fmt.Errorf("%w: %s", ErrUnexpectedGroupValue, key)
-		}
+	if valueValue.Type().AssignableTo(targetType) {
+		return valueValue.Interface().(T), nil
+	}
+	if valueValue.Type().ConvertibleTo(targetType) {
+		return valueValue.Convert(targetType).Interface().(T), nil
 	}
 
-	return nil
+	return zero, fmt.Errorf("%w: %v", ErrUnexpectedGroupValue, value)
 }
 
 func narrowUint(value uint64) any {

@@ -114,7 +114,7 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 			"dots":   "...",
 		}
 
-		actual, err := ExtractTypedNamedGroups(input, pattern, expected)
+		actual, err := ExtractTypedNamedGroups[any](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -130,7 +130,7 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 			},
 		}
 
-		actual, err := ExtractTypedNamedGroups(input, pattern, expected)
+		actual, err := ExtractTypedNamedGroups[any](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -146,7 +146,7 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 			"huge":   uint32(2147483648),
 		}
 
-		actual, err := ExtractTypedNamedGroups(input, pattern, expected)
+		actual, err := ExtractTypedNamedGroups[any](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -160,36 +160,29 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 			"large": 340282350000000000000000000000000000000.0,
 		}
 
-		actual, err := ExtractTypedNamedGroups(input, pattern, expected)
+		actual, err := ExtractTypedNamedGroups[any](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
 
-	It("returns an error when expected values do not match", func() {
-		pattern := `^(?P<word>\w+)-(?P<number>\d+)$`
+	It("returns an error when the type parameter is a struct", func() {
+		pattern := `^(?P<Word>\w+)$`
 
-		input := "hello-42"
-		expected := map[string]any{
-			"word":   "hello",
-			"number": uint8(41),
+		input := "hello"
+		type Expected struct {
+			Word string
 		}
 
-		_, err := ExtractTypedNamedGroups(input, pattern, expected)
-		tAssert.ErrorIs(err, ErrUnexpectedGroupValue)
+		_, err := ExtractTypedNamedGroups[Expected](input, pattern)
+		tAssert.ErrorIs(err, ErrExpectedStruct)
 	})
 
-	It("returns an error when expected values are a struct", func() {
+	It("returns an error when a value cannot convert to the target type", func() {
 		pattern := `^(?P<word>\w+)$`
 
 		input := "hello"
-		expected := struct {
-			Word string
-		}{
-			Word: "hello",
-		}
-
-		_, err := ExtractTypedNamedGroups(input, pattern, expected)
-		tAssert.ErrorIs(err, ErrExpectedStruct)
+		_, err := ExtractTypedNamedGroups[uint8](input, pattern)
+		tAssert.ErrorIs(err, ErrUnexpectedGroupValue)
 	})
 })
 
@@ -437,7 +430,7 @@ var DescribeInvalidRegex = Describe("InvalidRegex", func() {
 	})
 
 	It("returns an error for ExtractTypedNamedGroups", func() {
-		_, err := ExtractTypedNamedGroups("value", "(", map[string]any{"value": "value"})
+		_, err := ExtractTypedNamedGroups[any]("value", "(")
 		tAssert.ErrorIs(err, ErrInvalidRegex)
 	})
 

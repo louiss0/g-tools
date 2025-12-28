@@ -103,7 +103,7 @@ matches while enforcing consistent error handling and type conversion.
 *   **`ExtractGroups`**: Extracts named capture groups into a `map[string]string`.
 *   **`ExtractSlice`**: Extracts capture groups into a typed slice.
 *   **`ExtractTypedNamedGroups`**: Extracts named groups into typed values,
-    including nested captures, and validates against expected map values.
+    including nested captures.
 *   **`ExtractTypedUnnamedGroups`**: Extracts unnamed groups into typed slices,
     preserving nested captures.
 *   **`ExtractToStruct`**: Assigns named groups into struct fields.
