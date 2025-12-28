@@ -114,7 +114,7 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 			"dots":   "...",
 		}
 
-		actual, err := ExtractTypedNamedGroups(input, pattern)
+		actual, err := ExtractTypedNamedGroups(input, pattern, expected)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -130,7 +130,7 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 			},
 		}
 
-		actual, err := ExtractTypedNamedGroups(input, pattern)
+		actual, err := ExtractTypedNamedGroups(input, pattern, expected)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -146,7 +146,7 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 			"huge":   uint32(2147483648),
 		}
 
-		actual, err := ExtractTypedNamedGroups(input, pattern)
+		actual, err := ExtractTypedNamedGroups(input, pattern, expected)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -160,9 +160,36 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 			"large": 340282350000000000000000000000000000000.0,
 		}
 
-		actual, err := ExtractTypedNamedGroups(input, pattern)
+		actual, err := ExtractTypedNamedGroups(input, pattern, expected)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
+	})
+
+	It("returns an error when expected values do not match", func() {
+		pattern := `^(?P<word>\w+)-(?P<number>\d+)$`
+
+		input := "hello-42"
+		expected := map[string]any{
+			"word":   "hello",
+			"number": uint8(41),
+		}
+
+		_, err := ExtractTypedNamedGroups(input, pattern, expected)
+		tAssert.ErrorIs(err, ErrUnexpectedGroupValue)
+	})
+
+	It("returns an error when expected values are a struct", func() {
+		pattern := `^(?P<word>\w+)$`
+
+		input := "hello"
+		expected := struct {
+			Word string
+		}{
+			Word: "hello",
+		}
+
+		_, err := ExtractTypedNamedGroups(input, pattern, expected)
+		tAssert.ErrorIs(err, ErrExpectedStruct)
 	})
 })
 
@@ -410,7 +437,7 @@ var DescribeInvalidRegex = Describe("InvalidRegex", func() {
 	})
 
 	It("returns an error for ExtractTypedNamedGroups", func() {
-		_, err := ExtractTypedNamedGroups("value", "(")
+		_, err := ExtractTypedNamedGroups("value", "(", map[string]any{"value": "value"})
 		tAssert.ErrorIs(err, ErrInvalidRegex)
 	})
 

@@ -11,12 +11,16 @@ import (
 )
 
 var (
-	ErrDuplicateGroupName = errors.New("regex_extract: duplicate group name")
-	ErrInvalidGroupName   = errors.New("regex_extract: group name contains a dash")
-	ErrInvalidRegex       = errors.New("regex_extract: invalid regex pattern")
-	ErrNoMatch            = errors.New("regex_extract: no match found")
-	ErrStructType         = errors.New("regex_extract: target must be a struct type")
-	ErrInvalidSliceValue  = errors.New("regex_extract: invalid slice value")
+	ErrDuplicateGroupName   = errors.New("regex_extract: duplicate group name")
+	ErrInvalidGroupName     = errors.New("regex_extract: group name contains a dash")
+	ErrInvalidRegex         = errors.New("regex_extract: invalid regex pattern")
+	ErrNoMatch              = errors.New("regex_extract: no match found")
+	ErrStructType           = errors.New("regex_extract: target must be a struct type")
+	ErrInvalidSliceValue    = errors.New("regex_extract: invalid slice value")
+	ErrExpectedMap          = errors.New("regex_extract: expected map values")
+	ErrExpectedStruct       = errors.New("regex_extract: use ExtractToStruct for struct values")
+	ErrMissingExpectedGroup = errors.New("regex_extract: missing expected group")
+	ErrUnexpectedGroupValue = errors.New("regex_extract: unexpected group value")
 
 	floatPattern = regexp.MustCompile(`^\d+\.\d+$`)
 	digitPattern = regexp.MustCompile(`^\d+$`)
@@ -96,7 +100,7 @@ func ExtractSlice[T SliceValue](input string, pattern string) ([]T, error) {
 	return extracted, nil
 }
 
-func ExtractTypedNamedGroups(input string, pattern string) (map[string]any, error) {
+func ExtractTypedNamedGroups(input string, pattern string, expected any) (map[string]any, error) {
 	regex, err := compileRegex(pattern)
 	if err != nil {
 		return nil, err
@@ -105,6 +109,11 @@ func ExtractTypedNamedGroups(input string, pattern string) (map[string]any, erro
 	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
+	}
+
+	expectedValues, err := normalizeExpectedMap(expected)
+	if err != nil {
+		return nil, err
 	}
 
 	captureTree := parseCaptureTree(regex.String())
@@ -132,6 +141,10 @@ func ExtractTypedNamedGroups(input string, pattern string) (map[string]any, erro
 		}
 
 		extracted[node.name] = value
+	}
+
+	if err := validateExpectedValues(extracted, expectedValues); err != nil {
+		return nil, err
 	}
 
 	return extracted, nil
@@ -510,6 +523,87 @@ func parseSliceValue[T SliceValue](value string) (T, error) {
 	default:
 		return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
 	}
+}
+
+func normalizeExpectedMap(expected any) (map[string]any, error) {
+	if expected == nil {
+		return nil, ErrExpectedMap
+	}
+
+	expectedValue := reflect.ValueOf(expected)
+	if expectedValue.Kind() == reflect.Struct {
+		return nil, ErrExpectedStruct
+	}
+	if expectedValue.Kind() != reflect.Map || expectedValue.Type().Key().Kind() != reflect.String {
+		return nil, ErrExpectedMap
+	}
+
+	normalized := make(map[string]any, expectedValue.Len())
+	for _, key := range expectedValue.MapKeys() {
+		value := expectedValue.MapIndex(key)
+		normalizedValue, err := normalizeExpectedValue(value)
+		if err != nil {
+			return nil, err
+		}
+		normalized[key.String()] = normalizedValue
+	}
+
+	return normalized, nil
+}
+
+func normalizeExpectedValue(value reflect.Value) (any, error) {
+	if !value.IsValid() {
+		return nil, nil
+	}
+
+	if value.Kind() == reflect.Struct {
+		return nil, ErrExpectedStruct
+	}
+
+	if value.Kind() == reflect.Map {
+		if value.Type().Key().Kind() != reflect.String {
+			return nil, ErrExpectedMap
+		}
+
+		normalized := make(map[string]any, value.Len())
+		for _, key := range value.MapKeys() {
+			innerValue, err := normalizeExpectedValue(value.MapIndex(key))
+			if err != nil {
+				return nil, err
+			}
+			normalized[key.String()] = innerValue
+		}
+		return normalized, nil
+	}
+
+	return value.Interface(), nil
+}
+
+func validateExpectedValues(actual map[string]any, expected map[string]any) error {
+	for key, expectedValue := range expected {
+		actualValue, ok := actual[key]
+		if !ok {
+			return fmt.Errorf("%w: %s", ErrMissingExpectedGroup, key)
+		}
+
+		expectedMap, isExpectedMap := expectedValue.(map[string]any)
+		if isExpectedMap {
+			actualMap, ok := actualValue.(map[string]any)
+			if !ok {
+				return fmt.Errorf("%w: %s", ErrUnexpectedGroupValue, key)
+			}
+			if err := validateExpectedValues(actualMap, expectedMap); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if !reflect.DeepEqual(actualValue, expectedValue) {
+			return fmt.Errorf("%w: %s", ErrUnexpectedGroupValue, key)
+		}
+	}
+
+	return nil
 }
 
 func narrowUint(value uint64) any {
