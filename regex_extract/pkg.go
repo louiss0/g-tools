@@ -11,16 +11,42 @@ import (
 )
 
 var (
-	ErrDuplicateGroupName = errors.New("regex_extract: duplicate group name")
-	ErrInvalidGroupName   = errors.New("regex_extract: group name contains a dash")
-	ErrNoMatch            = errors.New("regex_extract: no match found")
-	ErrStructType         = errors.New("regex_extract: target must be a struct type")
+	ErrDuplicateGroupName   = errors.New("regex_extract: duplicate group name")
+	ErrInvalidGroupName     = errors.New("regex_extract: group name contains a dash")
+	ErrInvalidRegex         = errors.New("regex_extract: invalid regex pattern")
+	ErrNoMatch              = errors.New("regex_extract: no match found")
+	ErrStructType           = errors.New("regex_extract: target must be a struct type")
+	ErrInvalidSliceValue    = errors.New("regex_extract: invalid slice value")
+	ErrUnexpectedSliceValue = errors.New("regex_extract: unexpected slice value")
 
 	floatPattern = regexp.MustCompile(`^\d+\.\d+$`)
 	digitPattern = regexp.MustCompile(`^\d+$`)
 )
 
-func ExtractGroups(input string, regex *regexp.Regexp) (map[string]string, error) {
+type SliceValue interface {
+	string | int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64 | float32 | float64
+}
+
+// MapValues transforms each value in the input map and returns a new map with the same keys.
+func MapValues[key comparable, input any, output any](values map[key]input, mapper func(input) output) map[key]output {
+	if values == nil {
+		return nil
+	}
+
+	mapped := make(map[key]output, len(values))
+	for entryKey, entryValue := range values {
+		mapped[entryKey] = mapper(entryValue)
+	}
+
+	return mapped
+}
+
+func ExtractGroups(input string, pattern string) (map[string]string, error) {
+	regex, err := compileRegex(pattern)
+	if err != nil {
+		return nil, err
+	}
+
 	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
@@ -48,7 +74,43 @@ func ExtractGroups(input string, regex *regexp.Regexp) (map[string]string, error
 	return extracted, nil
 }
 
-func ExtractTypedNamedGroups(input string, regex *regexp.Regexp) (map[string]any, error) {
+func ExtractSlice[T SliceValue](input string, pattern string, allowedValues []T) ([]T, error) {
+	regex, err := compileRegex(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	submatches := regex.FindStringSubmatch(input)
+	if len(submatches) == 0 {
+		return nil, ErrNoMatch
+	}
+
+	allowedSet := make(map[T]struct{}, len(allowedValues))
+	for _, allowedValue := range allowedValues {
+		allowedSet[allowedValue] = struct{}{}
+	}
+
+	extracted := make([]T, 0, len(submatches)-1)
+	for _, submatch := range submatches[1:] {
+		value, err := parseSliceValue[T](submatch)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := allowedSet[value]; !ok {
+			return nil, fmt.Errorf("%w: %v", ErrUnexpectedSliceValue, value)
+		}
+		extracted = append(extracted, value)
+	}
+
+	return extracted, nil
+}
+
+func ExtractTypedNamedGroups(input string, pattern string) (map[string]any, error) {
+	regex, err := compileRegex(pattern)
+	if err != nil {
+		return nil, err
+	}
+
 	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
@@ -84,8 +146,13 @@ func ExtractTypedNamedGroups(input string, regex *regexp.Regexp) (map[string]any
 	return extracted, nil
 }
 
-func ExtractToStruct[T any](input string, regex *regexp.Regexp) (T, error) {
+func ExtractToStruct[T any](input string, pattern string) (T, error) {
 	var result T
+	regex, err := compileRegex(pattern)
+	if err != nil {
+		return result, err
+	}
+
 	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return result, ErrNoMatch
@@ -124,7 +191,12 @@ func ExtractToStruct[T any](input string, regex *regexp.Regexp) (T, error) {
 	return structValue.Interface().(T), nil
 }
 
-func ExtractTypedUnnamedGroups(input string, regex *regexp.Regexp) ([]any, error) {
+func ExtractTypedUnnamedGroups(input string, pattern string) ([]any, error) {
+	regex, err := compileRegex(pattern)
+	if err != nil {
+		return nil, err
+	}
+
 	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
@@ -374,6 +446,97 @@ func isFloat(value string) bool {
 
 func isDigit(value string) bool {
 	return digitPattern.MatchString(value)
+}
+
+func compileRegex(pattern string) (*regexp.Regexp, error) {
+	regex, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidRegex, err)
+	}
+	return regex, nil
+}
+
+func parseSliceValue[T SliceValue](value string) (T, error) {
+	var zero T
+
+	switch any(zero).(type) {
+	case string:
+		return any(value).(T), nil
+	case int:
+		parsed, err := strconv.ParseInt(value, 10, strconv.IntSize)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(int(parsed)).(T), nil
+	case int8:
+		parsed, err := strconv.ParseInt(value, 10, 8)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(int8(parsed)).(T), nil
+	case int16:
+		parsed, err := strconv.ParseInt(value, 10, 16)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(int16(parsed)).(T), nil
+	case int32:
+		parsed, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(int32(parsed)).(T), nil
+	case int64:
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(parsed).(T), nil
+	case uint:
+		parsed, err := strconv.ParseUint(value, 10, strconv.IntSize)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(uint(parsed)).(T), nil
+	case uint8:
+		parsed, err := strconv.ParseUint(value, 10, 8)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(uint8(parsed)).(T), nil
+	case uint16:
+		parsed, err := strconv.ParseUint(value, 10, 16)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(uint16(parsed)).(T), nil
+	case uint32:
+		parsed, err := strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(uint32(parsed)).(T), nil
+	case uint64:
+		parsed, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(parsed).(T), nil
+	case float32:
+		parsed, err := strconv.ParseFloat(value, 32)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(float32(parsed)).(T), nil
+	case float64:
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+		}
+		return any(parsed).(T), nil
+	default:
+		return zero, fmt.Errorf("%w: %s", ErrInvalidSliceValue, value)
+	}
 }
 
 func narrowUint(value uint64) any {
