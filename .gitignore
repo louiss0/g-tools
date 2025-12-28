@@ -1,0 +1,34 @@
+### Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.a
+*.o
+
+### Go binaries
+bin/
+
+### Go coverage
+*.coverprofile
+coverage/
+
+### Go workspaces
+go.work
+go.work.sum
+
+### Go module replacements
+vendor/
+
+### Tooling caches
+.gocache/
+
+### IDE and OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
