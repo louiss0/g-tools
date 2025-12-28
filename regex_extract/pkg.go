@@ -1,0 +1,504 @@
+package regex_extract
+
+import (
+	"errors"
+	"fmt"
+	"math"
+	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+var (
+	ErrDuplicateGroupName = errors.New("regex_extract: duplicate group name")
+	ErrInvalidGroupName   = errors.New("regex_extract: group name contains a dash")
+	ErrNoMatch            = errors.New("regex_extract: no match found")
+	ErrStructType         = errors.New("regex_extract: target must be a struct type")
+
+	floatPattern = regexp.MustCompile(`^\d+\.\d+$`)
+	digitPattern = regexp.MustCompile(`^\d+$`)
+)
+
+func ExtractGroups(input string, regex *regexp.Regexp) (map[string]string, error) {
+	submatches := regex.FindStringSubmatch(input)
+	if len(submatches) == 0 {
+		return nil, ErrNoMatch
+	}
+
+	groupNames := regex.SubexpNames()
+	extracted := make(map[string]string, len(groupNames))
+
+	for index, name := range groupNames {
+		if index == 0 || name == "" {
+			continue
+		}
+
+		if strings.Contains(name, "-") {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidGroupName, name)
+		}
+
+		if _, exists := extracted[name]; exists {
+			return nil, fmt.Errorf("%w: %s", ErrDuplicateGroupName, name)
+		}
+
+		extracted[name] = submatches[index]
+	}
+
+	return extracted, nil
+}
+
+func ExtractTypedNamedGroups(input string, regex *regexp.Regexp) (map[string]any, error) {
+	submatches := regex.FindStringSubmatch(input)
+	if len(submatches) == 0 {
+		return nil, ErrNoMatch
+	}
+
+	captureTree := parseCaptureTree(regex.String())
+	extracted := map[string]any{}
+
+	for _, node := range captureTree {
+		if node.name == "" {
+			if err := mergeNamedChildren(extracted, node, submatches); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		if strings.Contains(node.name, "-") {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidGroupName, node.name)
+		}
+
+		if _, exists := extracted[node.name]; exists {
+			return nil, fmt.Errorf("%w: %s", ErrDuplicateGroupName, node.name)
+		}
+
+		value, err := buildNamedValue(node, submatches)
+		if err != nil {
+			return nil, err
+		}
+
+		extracted[node.name] = value
+	}
+
+	return extracted, nil
+}
+
+func ExtractToStruct[T any](input string, regex *regexp.Regexp) (T, error) {
+	var result T
+	submatches := regex.FindStringSubmatch(input)
+	if len(submatches) == 0 {
+		return result, ErrNoMatch
+	}
+
+	targetType := reflect.TypeOf(result)
+	if targetType.Kind() != reflect.Struct {
+		return result, ErrStructType
+	}
+
+	structValue := reflect.New(targetType).Elem()
+
+	captureTree := parseCaptureTree(regex.String())
+	for _, node := range captureTree {
+		if node.name == "" {
+			if err := applyStructChildren(structValue, node, submatches); err != nil {
+				return result, err
+			}
+			continue
+		}
+
+		if !isValidStructFieldName(node.name) {
+			return result, fmt.Errorf("regex_extract: invalid struct field name %s", node.name)
+		}
+
+		field := structValue.FieldByName(node.name)
+		if !field.IsValid() {
+			return result, fmt.Errorf("regex_extract: missing struct field for group %s", node.name)
+		}
+
+		if err := assignStructValue(field, node, submatches); err != nil {
+			return result, err
+		}
+	}
+
+	return structValue.Interface().(T), nil
+}
+
+func ExtractTypedUnnamedGroups(input string, regex *regexp.Regexp) ([]any, error) {
+	submatches := regex.FindStringSubmatch(input)
+	if len(submatches) == 0 {
+		return nil, ErrNoMatch
+	}
+
+	captureTree := parseCaptureTree(regex.String())
+	extracted := make([]any, 0, len(captureTree))
+
+	for _, node := range captureTree {
+		value, include, err := buildUnnamedValue(node, submatches)
+		if err != nil {
+			return nil, err
+		}
+		if include {
+			extracted = append(extracted, value)
+		}
+	}
+
+	return extracted, nil
+}
+
+type captureNode struct {
+	name     string
+	index    int
+	children []*captureNode
+}
+
+func parseCaptureTree(pattern string) []*captureNode {
+	var rootNodes []*captureNode
+	var groupStack []bool
+	var captureStack []*captureNode
+	escaped := false
+	inCharClass := false
+	groupIndex := 0
+
+	for i := 0; i < len(pattern); i++ {
+		character := pattern[i]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if character == '\\' {
+			escaped = true
+			continue
+		}
+
+		if inCharClass {
+			if character == ']' {
+				inCharClass = false
+			}
+			continue
+		}
+
+		if character == '[' {
+			inCharClass = true
+			continue
+		}
+
+		if character == '(' {
+			groupName, isCapturing, advance := parseGroupStart(pattern, i)
+			groupStack = append(groupStack, isCapturing)
+
+			if isCapturing {
+				groupIndex++
+				node := &captureNode{
+					name:  groupName,
+					index: groupIndex,
+				}
+
+				if len(captureStack) == 0 {
+					rootNodes = append(rootNodes, node)
+				} else {
+					parent := captureStack[len(captureStack)-1]
+					parent.children = append(parent.children, node)
+				}
+
+				captureStack = append(captureStack, node)
+			}
+
+			if advance > 0 {
+				i += advance
+			}
+			continue
+		}
+
+		if character == ')' {
+			if len(groupStack) == 0 {
+				continue
+			}
+
+			isCapturing := groupStack[len(groupStack)-1]
+			groupStack = groupStack[:len(groupStack)-1]
+
+			if isCapturing && len(captureStack) > 0 {
+				captureStack = captureStack[:len(captureStack)-1]
+			}
+		}
+	}
+
+	return rootNodes
+}
+
+func parseGroupStart(pattern string, index int) (string, bool, int) {
+	if index+1 >= len(pattern) || pattern[index+1] != '?' {
+		return "", true, 0
+	}
+
+	if strings.HasPrefix(pattern[index+1:], "?P<") {
+		nameStart := index + 4
+		nameEnd := strings.IndexByte(pattern[nameStart:], '>')
+		if nameEnd == -1 {
+			return "", false, 0
+		}
+		nameEnd += nameStart
+
+		return pattern[nameStart:nameEnd], true, nameEnd - index
+	}
+
+	return "", false, 0
+}
+
+func buildNamedValue(node *captureNode, submatches []string) (any, error) {
+	if hasNamedChildren(node) {
+		return buildNamedChildren(node, submatches)
+	}
+
+	if node.index >= len(submatches) {
+		return "", nil
+	}
+
+	return inferValue(submatches[node.index]), nil
+}
+
+func buildNamedChildren(node *captureNode, submatches []string) (map[string]any, error) {
+	extracted := map[string]any{}
+
+	for _, child := range node.children {
+		if child.name == "" {
+			if err := mergeNamedChildren(extracted, child, submatches); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		if strings.Contains(child.name, "-") {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidGroupName, child.name)
+		}
+
+		if _, exists := extracted[child.name]; exists {
+			return nil, fmt.Errorf("%w: %s", ErrDuplicateGroupName, child.name)
+		}
+
+		value, err := buildNamedValue(child, submatches)
+		if err != nil {
+			return nil, err
+		}
+
+		extracted[child.name] = value
+	}
+
+	return extracted, nil
+}
+
+func mergeNamedChildren(target map[string]any, node *captureNode, submatches []string) error {
+	if !hasNamedChildren(node) {
+		return nil
+	}
+
+	children, err := buildNamedChildren(node, submatches)
+	if err != nil {
+		return err
+	}
+
+	for key, value := range children {
+		if _, exists := target[key]; exists {
+			return fmt.Errorf("%w: %s", ErrDuplicateGroupName, key)
+		}
+		target[key] = value
+	}
+
+	return nil
+}
+
+func hasNamedChildren(node *captureNode) bool {
+	for _, child := range node.children {
+		if child.name != "" || hasNamedChildren(child) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func buildUnnamedValue(node *captureNode, submatches []string) (any, bool, error) {
+	var values []any
+	for _, child := range node.children {
+		value, include, err := buildUnnamedValue(child, submatches)
+		if err != nil {
+			return nil, false, err
+		}
+		if include {
+			values = append(values, value)
+		}
+	}
+
+	if len(values) > 0 {
+		return values, true, nil
+	}
+
+	if node.name != "" {
+		return nil, false, nil
+	}
+
+	if node.index >= len(submatches) {
+		return "", true, nil
+	}
+
+	return inferValue(submatches[node.index]), true, nil
+}
+
+func inferValue(value string) any {
+	if isFloat(value) {
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err == nil {
+			if math.Abs(parsed) <= math.MaxFloat32 {
+				return float32(parsed)
+			}
+			return parsed
+		}
+	}
+
+	if isDigit(value) {
+		parsed, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			return narrowUint(parsed)
+		}
+	}
+
+	return value
+}
+
+func isFloat(value string) bool {
+	return floatPattern.MatchString(value)
+}
+
+func isDigit(value string) bool {
+	return digitPattern.MatchString(value)
+}
+
+func narrowUint(value uint64) any {
+	if value <= math.MaxUint8 {
+		return uint8(value)
+	}
+	if value <= math.MaxUint16 {
+		return uint16(value)
+	}
+	if value <= math.MaxUint32 {
+		return uint32(value)
+	}
+	return value
+}
+
+func applyStructChildren(structValue reflect.Value, node *captureNode, submatches []string) error {
+	for _, child := range node.children {
+		if child.name == "" {
+			if err := applyStructChildren(structValue, child, submatches); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if !isValidStructFieldName(child.name) {
+			return fmt.Errorf("regex_extract: invalid struct field name %s", child.name)
+		}
+
+		field := structValue.FieldByName(child.name)
+		if !field.IsValid() {
+			return fmt.Errorf("regex_extract: missing struct field for group %s", child.name)
+		}
+
+		if err := assignStructValue(field, child, submatches); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func assignStructValue(field reflect.Value, node *captureNode, submatches []string) error {
+	if !field.CanSet() {
+		return fmt.Errorf("regex_extract: field %s must be exported", node.name)
+	}
+
+	if hasNamedChildren(node) {
+		if field.Kind() == reflect.Pointer {
+			if field.IsNil() {
+				field.Set(reflect.New(field.Type().Elem()))
+			}
+			field = field.Elem()
+		}
+
+		if field.Kind() != reflect.Struct {
+			return fmt.Errorf("regex_extract: field %s must be a struct for nested groups", node.name)
+		}
+
+		return applyStructChildren(field, node, submatches)
+	}
+
+	if node.index >= len(submatches) {
+		return nil
+	}
+
+	return setStructValue(field, inferValue(submatches[node.index]))
+}
+
+func setStructValue(field reflect.Value, value any) error {
+	valueValue := reflect.ValueOf(value)
+	if !valueValue.IsValid() {
+		return nil
+	}
+
+	if field.Kind() == reflect.Pointer {
+		elementType := field.Type().Elem()
+		if !valueValue.Type().ConvertibleTo(elementType) {
+			return fmt.Errorf("regex_extract: cannot assign %s to %s", valueValue.Type(), elementType)
+		}
+		converted := valueValue.Convert(elementType)
+		pointerValue := reflect.New(elementType)
+		pointerValue.Elem().Set(converted)
+		field.Set(pointerValue)
+		return nil
+	}
+
+	if !valueValue.Type().ConvertibleTo(field.Type()) {
+		return fmt.Errorf("regex_extract: cannot assign %s to %s", valueValue.Type(), field.Type())
+	}
+	field.Set(valueValue.Convert(field.Type()))
+	return nil
+}
+
+func isValidStructFieldName(name string) bool {
+	if name == "" {
+		return false
+	}
+
+	first := name[0]
+	if !isUppercaseLetter(first) {
+		return false
+	}
+
+	for index := 1; index < len(name); index++ {
+		if !isGoIdentifierCharacter(name[index]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isUppercaseLetter(character byte) bool {
+	return character >= 'A' && character <= 'Z'
+}
+
+func isGoIdentifierCharacter(character byte) bool {
+	if character >= 'a' && character <= 'z' {
+		return true
+	}
+	if character >= 'A' && character <= 'Z' {
+		return true
+	}
+	if character >= '0' && character <= '9' {
+		return true
+	}
+	return character == '_'
+}
