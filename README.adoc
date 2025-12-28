@@ -101,8 +101,7 @@ The `regex_extract` package provides helpers for extracting data from regex
 matches while enforcing consistent error handling and type conversion.
 
 *   **`ExtractGroups`**: Extracts named capture groups into a `map[string]string`.
-*   **`ExtractSlice`**: Extracts capture groups into a typed slice, validating
-    that each value is in an allowed list.
+*   **`ExtractSlice`**: Extracts capture groups into a typed slice.
 *   **`ExtractTypedNamedGroups`**: Extracts named groups into typed values,
     including nested captures.
 *   **`ExtractTypedUnnamedGroups`**: Extracts unnamed groups into typed slices,

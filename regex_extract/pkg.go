@@ -11,13 +11,12 @@ import (
 )
 
 var (
-	ErrDuplicateGroupName   = errors.New("regex_extract: duplicate group name")
-	ErrInvalidGroupName     = errors.New("regex_extract: group name contains a dash")
-	ErrInvalidRegex         = errors.New("regex_extract: invalid regex pattern")
-	ErrNoMatch              = errors.New("regex_extract: no match found")
-	ErrStructType           = errors.New("regex_extract: target must be a struct type")
-	ErrInvalidSliceValue    = errors.New("regex_extract: invalid slice value")
-	ErrUnexpectedSliceValue = errors.New("regex_extract: unexpected slice value")
+	ErrDuplicateGroupName = errors.New("regex_extract: duplicate group name")
+	ErrInvalidGroupName   = errors.New("regex_extract: group name contains a dash")
+	ErrInvalidRegex       = errors.New("regex_extract: invalid regex pattern")
+	ErrNoMatch            = errors.New("regex_extract: no match found")
+	ErrStructType         = errors.New("regex_extract: target must be a struct type")
+	ErrInvalidSliceValue  = errors.New("regex_extract: invalid slice value")
 
 	floatPattern = regexp.MustCompile(`^\d+\.\d+$`)
 	digitPattern = regexp.MustCompile(`^\d+$`)
@@ -74,7 +73,7 @@ func ExtractGroups(input string, pattern string) (map[string]string, error) {
 	return extracted, nil
 }
 
-func ExtractSlice[T SliceValue](input string, pattern string, allowedValues []T) ([]T, error) {
+func ExtractSlice[T SliceValue](input string, pattern string) ([]T, error) {
 	regex, err := compileRegex(pattern)
 	if err != nil {
 		return nil, err
@@ -85,19 +84,11 @@ func ExtractSlice[T SliceValue](input string, pattern string, allowedValues []T)
 		return nil, ErrNoMatch
 	}
 
-	allowedSet := make(map[T]struct{}, len(allowedValues))
-	for _, allowedValue := range allowedValues {
-		allowedSet[allowedValue] = struct{}{}
-	}
-
 	extracted := make([]T, 0, len(submatches)-1)
 	for _, submatch := range submatches[1:] {
 		value, err := parseSliceValue[T](submatch)
 		if err != nil {
 			return nil, err
-		}
-		if _, ok := allowedSet[value]; !ok {
-			return nil, fmt.Errorf("%w: %v", ErrUnexpectedSliceValue, value)
 		}
 		extracted = append(extracted, value)
 	}
@@ -166,26 +157,8 @@ func ExtractToStruct[T any](input string, pattern string) (T, error) {
 	structValue := reflect.New(targetType).Elem()
 
 	captureTree := parseCaptureTree(regex.String())
-	for _, node := range captureTree {
-		if node.name == "" {
-			if err := applyStructChildren(structValue, node, submatches); err != nil {
-				return result, err
-			}
-			continue
-		}
-
-		if !isValidStructFieldName(node.name) {
-			return result, fmt.Errorf("regex_extract: invalid struct field name %s", node.name)
-		}
-
-		field := structValue.FieldByName(node.name)
-		if !field.IsValid() {
-			return result, fmt.Errorf("regex_extract: missing struct field for group %s", node.name)
-		}
-
-		if err := assignStructValue(field, node, submatches); err != nil {
-			return result, err
-		}
+	if err := applyStructNodes(structValue, captureTree, submatches); err != nil {
+		return result, err
 	}
 
 	return structValue.Interface().(T), nil
@@ -552,25 +525,25 @@ func narrowUint(value uint64) any {
 	return value
 }
 
-func applyStructChildren(structValue reflect.Value, node *captureNode, submatches []string) error {
-	for _, child := range node.children {
-		if child.name == "" {
-			if err := applyStructChildren(structValue, child, submatches); err != nil {
+func applyStructNodes(structValue reflect.Value, nodes []*captureNode, submatches []string) error {
+	for _, node := range nodes {
+		if node.name == "" {
+			if err := applyStructNodes(structValue, node.children, submatches); err != nil {
 				return err
 			}
 			continue
 		}
 
-		if !isValidStructFieldName(child.name) {
-			return fmt.Errorf("regex_extract: invalid struct field name %s", child.name)
+		if !isValidStructFieldName(node.name) {
+			return fmt.Errorf("regex_extract: invalid struct field name %s", node.name)
 		}
 
-		field := structValue.FieldByName(child.name)
+		field := structValue.FieldByName(node.name)
 		if !field.IsValid() {
-			return fmt.Errorf("regex_extract: missing struct field for group %s", child.name)
+			return fmt.Errorf("regex_extract: missing struct field for group %s", node.name)
 		}
 
-		if err := assignStructValue(field, child, submatches); err != nil {
+		if err := assignStructValue(field, node, submatches); err != nil {
 			return err
 		}
 	}
@@ -595,7 +568,7 @@ func assignStructValue(field reflect.Value, node *captureNode, submatches []stri
 			return fmt.Errorf("regex_extract: field %s must be a struct for nested groups", node.name)
 		}
 
-		return applyStructChildren(field, node, submatches)
+		return applyStructNodes(field, node.children, submatches)
 	}
 
 	if node.index >= len(submatches) {

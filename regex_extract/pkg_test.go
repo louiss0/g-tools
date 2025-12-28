@@ -64,9 +64,8 @@ var DescribeExtractSlice = Describe("ExtractSlice", func() {
 
 		input := "note-42"
 		expected := []string{"note", "42"}
-		allowed := []string{"note", "42"}
 
-		actual, err := ExtractSlice[string](input, pattern, allowed)
+		actual, err := ExtractSlice[string](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -76,9 +75,8 @@ var DescribeExtractSlice = Describe("ExtractSlice", func() {
 
 		input := "10-20"
 		expected := []uint8{10, 20}
-		allowed := []uint8{10, 20}
 
-		actual, err := ExtractSlice[uint8](input, pattern, allowed)
+		actual, err := ExtractSlice[uint8](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -87,23 +85,15 @@ var DescribeExtractSlice = Describe("ExtractSlice", func() {
 		pattern := `^(\d+)$`
 
 		input := "300"
-		_, err := ExtractSlice[uint8](input, pattern, []uint8{10})
+		_, err := ExtractSlice[uint8](input, pattern)
 		tAssert.Error(err)
-	})
-
-	It("returns an error when a value is not in the allowed set", func() {
-		pattern := `^(\d+)-(\d+)$`
-
-		input := "10-20"
-		_, err := ExtractSlice[uint8](input, pattern, []uint8{10})
-		tAssert.ErrorIs(err, ErrUnexpectedSliceValue)
 	})
 
 	It("returns an error when there is no match", func() {
 		pattern := `^(\d+)$`
 
 		input := "nope"
-		_, err := ExtractSlice[int](input, pattern, []int{1})
+		_, err := ExtractSlice[int](input, pattern)
 		tAssert.ErrorIs(err, ErrNoMatch)
 	})
 })
@@ -257,6 +247,27 @@ var DescribeExtractToStruct = Describe("ExtractToStruct", func() {
 		Outer Nested
 	}
 
+	type DeepInner struct {
+		Value uint8
+	}
+
+	type DeepOuter struct {
+		Inner DeepInner
+	}
+
+	type DeepContainer struct {
+		Outer DeepOuter
+	}
+
+	type SiblingInner struct {
+		Tail string
+	}
+
+	type SiblingContainer struct {
+		First  uint8
+		Second SiblingInner
+	}
+
 	It("extracts typed values into struct fields", func() {
 		pattern := `^(?P<Word>\w+)-(?P<Number>\d+)-(?P<Float>\d+\.\d+)-(?P<Dots>\.+)$`
 
@@ -285,6 +296,55 @@ var DescribeExtractToStruct = Describe("ExtractToStruct", func() {
 		}
 
 		actual, err := ExtractToStruct[Container](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("extracts nested groups wrapped in unnamed captures", func() {
+		pattern := `^((?P<Outer>(?P<Inner>\d+)-(?P<Tail>\w+)))$`
+
+		input := "123-abc"
+		expected := Container{
+			Outer: Nested{
+				Inner: uint8(123),
+				Tail:  "abc",
+			},
+		}
+
+		actual, err := ExtractToStruct[Container](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("extracts deeply nested groups into nested structs", func() {
+		pattern := `^(?P<Outer>(?P<Inner>(?P<Value>\d+)))$`
+
+		input := "42"
+		expected := DeepContainer{
+			Outer: DeepOuter{
+				Inner: DeepInner{
+					Value: uint8(42),
+				},
+			},
+		}
+
+		actual, err := ExtractToStruct[DeepContainer](input, pattern)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
+	})
+
+	It("extracts nested groups from mixed root captures", func() {
+		pattern := `^(?P<First>\d+)-((?P<Second>(?P<Tail>\w+)))$`
+
+		input := "7-abc"
+		expected := SiblingContainer{
+			First: uint8(7),
+			Second: SiblingInner{
+				Tail: "abc",
+			},
+		}
+
+		actual, err := ExtractToStruct[SiblingContainer](input, pattern)
 		tAssert.NoError(err)
 		tAssert.Equal(expected, actual)
 	})
@@ -345,7 +405,7 @@ var DescribeInvalidRegex = Describe("InvalidRegex", func() {
 	})
 
 	It("returns an error for ExtractSlice", func() {
-		_, err := ExtractSlice[int]("value", "(", []int{1})
+		_, err := ExtractSlice[int]("value", "(")
 		tAssert.ErrorIs(err, ErrInvalidRegex)
 	})
 
