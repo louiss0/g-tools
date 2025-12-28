@@ -8,75 +8,69 @@ import (
 	testifyassert "github.com/stretchr/testify/assert"
 )
 
+var tAssert *testifyassert.Assertions
+
 func TestEnum(t *testing.T) {
 	RunSpecs(t, "Enum Suite")
 }
 
-var describeNewEnum = Describe("NewEnum", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeNewEnum = Describe("NewEnum", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	It("creates an enum with the provided options", func() {
 		enum := NewEnum[string]("a", "b", "c")
 
-		assertions.Len(enum.Options(), 3)
+		tAssert.Len(enum.Options(), 3)
 	})
 })
 
-var describeEnumOptions = Describe("Enum.Options", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeEnumOptions = Describe("Enum.Options", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	It("returns options in the provided order", func() {
 		enum := NewEnum[int](1, 2, 3)
 		options := enum.Options()
 
-		assertions.Equal([]int{1, 2, 3}, options)
+		tAssert.Equal([]int{1, 2, 3}, options)
 	})
 })
 
-var describeEnumValidate = Describe("Enum.Validate", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeEnumValidate = Describe("Enum.Validate", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	It("validates whether a value is included", func() {
 		enum := NewEnum[string]("a", "b", "c")
 
-		assertions.True(enum.Validate("a"))
-		assertions.False(enum.Validate("d"))
+		tAssert.True(enum.Validate("a"))
+		tAssert.False(enum.Validate("d"))
 	})
 })
 
-var describeEnumParse = Describe("Enum.Parse", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeEnumParse = Describe("Enum.Parse", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	It("parses values and returns errors for invalid input", func() {
 		enum := NewEnum[int](1, 2, 3)
 
 		value, err := enum.Parse(1)
-		assertions.NoError(err)
-		assertions.Equal(1, value)
+		tAssert.NoError(err)
+		tAssert.Equal(1, value)
 
 		value, err = enum.Parse(4)
-		hasError := assertions.Error(err)
-		assertions.Equal(0, value)
+		hasError := tAssert.Error(err)
+		tAssert.Equal(0, value)
 
 		if hasError {
 			expectedError := "invalid value 4; it must be one of [1 2 3]"
-			assertions.Equal(expectedError, err.Error())
+			tAssert.Equal(expectedError, err.Error())
 		}
 	})
 })

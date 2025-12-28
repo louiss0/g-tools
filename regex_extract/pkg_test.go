@@ -8,15 +8,15 @@ import (
 	testifyassert "github.com/stretchr/testify/assert"
 )
 
+var tAssert *testifyassert.Assertions
+
 func TestRegexExtract(t *testing.T) {
 	RunSpecs(t, "Regex Extract Suite")
 }
 
-var describeExtractGroups = Describe("ExtractGroups", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeExtractGroups = Describe("ExtractGroups", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	It("extracts named groups into a map", func() {
@@ -28,8 +28,8 @@ var describeExtractGroups = Describe("ExtractGroups", func() {
 			"word":   "w",
 		}
 		actual, err := ExtractGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("preserves mixed-case group names", func() {
@@ -41,8 +41,8 @@ var describeExtractGroups = Describe("ExtractGroups", func() {
 			"Word":   "w",
 		}
 		actual, err := ExtractGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("returns an error when there is no match", func() {
@@ -50,15 +50,13 @@ var describeExtractGroups = Describe("ExtractGroups", func() {
 
 		input := "nope"
 		_, err := ExtractGroups(input, regex)
-		assertions.ErrorIs(err, ErrNoMatch)
+		tAssert.ErrorIs(err, ErrNoMatch)
 	})
 })
 
-var describeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	It("extracts typed values for named groups", func() {
@@ -73,8 +71,8 @@ var describeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 		}
 
 		actual, err := ExtractTypedNamedGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("extracts nested maps for named groups", func() {
@@ -89,8 +87,8 @@ var describeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 		}
 
 		actual, err := ExtractTypedNamedGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("uses range-based integer types for named groups", func() {
@@ -105,8 +103,8 @@ var describeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 		}
 
 		actual, err := ExtractTypedNamedGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("uses range-based float types for named groups", func() {
@@ -119,16 +117,14 @@ var describeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 		}
 
 		actual, err := ExtractTypedNamedGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 })
 
-var describeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	It("extracts typed values for unnamed groups", func() {
@@ -138,8 +134,8 @@ var describeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 		expected := []any{"hello", uint8(42), float32(3.14), "..."}
 
 		actual, err := ExtractTypedUnnamedGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("extracts nested slices for unnamed groups", func() {
@@ -151,8 +147,8 @@ var describeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 		}
 
 		actual, err := ExtractTypedUnnamedGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("uses range-based integer types for unnamed groups", func() {
@@ -167,8 +163,8 @@ var describeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 		}
 
 		actual, err := ExtractTypedUnnamedGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("uses range-based float types for unnamed groups", func() {
@@ -181,16 +177,14 @@ var describeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 		}
 
 		actual, err := ExtractTypedUnnamedGroups(input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 })
 
-var describeExtractToStruct = Describe("ExtractToStruct", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeExtractToStruct = Describe("ExtractToStruct", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	type Sample struct {
@@ -221,8 +215,8 @@ var describeExtractToStruct = Describe("ExtractToStruct", func() {
 		}
 
 		actual, err := ExtractToStruct[Sample](input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("extracts nested groups into nested structs", func() {
@@ -237,8 +231,8 @@ var describeExtractToStruct = Describe("ExtractToStruct", func() {
 		}
 
 		actual, err := ExtractToStruct[Container](input, regex)
-		assertions.NoError(err)
-		assertions.Equal(expected, actual)
+		tAssert.NoError(err)
+		tAssert.Equal(expected, actual)
 	})
 
 	It("returns an error for invalid struct field names", func() {
@@ -246,7 +240,7 @@ var describeExtractToStruct = Describe("ExtractToStruct", func() {
 
 		input := "hello"
 		_, err := ExtractToStruct[Sample](input, regex)
-		assertions.Error(err)
+		tAssert.Error(err)
 	})
 
 	It("returns an error for missing struct fields", func() {
@@ -254,6 +248,6 @@ var describeExtractToStruct = Describe("ExtractToStruct", func() {
 
 		input := "hello"
 		_, err := ExtractToStruct[Sample](input, regex)
-		assertions.Error(err)
+		tAssert.Error(err)
 	})
 })

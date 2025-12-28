@@ -8,6 +8,8 @@ import (
 	testifyassert "github.com/stretchr/testify/assert"
 )
 
+var tAssert *testifyassert.Assertions
+
 func TestMode(t *testing.T) {
 	RunSpecs(t, "Mode Suite")
 }
@@ -18,11 +20,9 @@ func resetBuildMode() {
 	buildMode = "" // Reset to default (development)
 }
 
-var describeNewModeOperator = Describe("NewModeOperator", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeNewModeOperator = Describe("NewModeOperator", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	AfterEach(resetBuildMode)
@@ -31,32 +31,30 @@ var describeNewModeOperator = Describe("NewModeOperator", func() {
 		buildMode = ""
 
 		op := NewModeOperator()
-		assertions.True(op.IsDevelopmentMode())
-		assertions.Equal(DEVELOPMENT, op.GetMode())
+		tAssert.True(op.IsDevelopmentMode())
+		tAssert.Equal(DEVELOPMENT, op.GetMode())
 	})
 
 	It("uses production mode when buildMode is production", func() {
 		buildMode = "production"
 
 		op := NewModeOperator()
-		assertions.True(op.IsProductionMode())
-		assertions.Equal(PRODUCTION, op.GetMode())
+		tAssert.True(op.IsProductionMode())
+		tAssert.Equal(PRODUCTION, op.GetMode())
 	})
 
 	It("falls back to development mode on invalid buildMode", func() {
 		buildMode = "unrecognized"
 
 		op := NewModeOperator()
-		assertions.True(op.IsDevelopmentMode())
-		assertions.Equal(DEVELOPMENT, op.GetMode())
+		tAssert.True(op.IsDevelopmentMode())
+		tAssert.Equal(DEVELOPMENT, op.GetMode())
 	})
 })
 
-var describeModeOperator = Describe("ModeOperator", func() {
-	var assertions *testifyassert.Assertions
-
+var DescribeModeOperator = Describe("ModeOperator", func() {
 	BeforeEach(func() {
-		assertions = testifyassert.New(GinkgoT())
+		tAssert = testifyassert.New(GinkgoT())
 	})
 
 	AfterEach(resetBuildMode)
@@ -65,8 +63,8 @@ var describeModeOperator = Describe("ModeOperator", func() {
 		buildMode = setBuildMode
 		op := NewModeOperator()
 
-		assertions.Equal(isDev, op.IsDevelopmentMode())
-		assertions.Equal(isProd, op.IsProductionMode())
+		tAssert.Equal(isDev, op.IsDevelopmentMode())
+		tAssert.Equal(isProd, op.IsProductionMode())
 	},
 		Entry("default (empty)", "", true, false),
 		Entry("development", "development", true, false),
@@ -84,7 +82,7 @@ var describeModeOperator = Describe("ModeOperator", func() {
 				executed = true
 			})
 
-			assertions.True(executed)
+			tAssert.True(executed)
 		})
 
 		It("skips the callback in development mode", func() {
@@ -96,7 +94,7 @@ var describeModeOperator = Describe("ModeOperator", func() {
 				executed = true
 			})
 
-			assertions.False(executed)
+			tAssert.False(executed)
 		})
 	})
 })
