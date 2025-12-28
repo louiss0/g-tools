@@ -1,24 +1,24 @@
 package regex_extract
 
 import (
+	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
-	testifyassert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 )
 
-var tAssert *testifyassert.Assertions
+var tAssert *assert.Assertions
 
 func TestRegexExtract(t *testing.T) {
+	tAssert = assert.New(t)
 	RunSpecs(t, "Regex Extract Suite")
 }
 
 var DescribeExtractGroups = Describe("ExtractGroups", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("extracts named groups into a map", func() {
 		pattern := `^(?P<number>\d+)(?P<word>\w+)`
 
@@ -55,10 +55,6 @@ var DescribeExtractGroups = Describe("ExtractGroups", func() {
 })
 
 var DescribeExtractSlice = Describe("ExtractSlice", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("extracts string groups into a slice", func() {
 		pattern := `^(\w+)-(\d+)$`
 
@@ -99,10 +95,6 @@ var DescribeExtractSlice = Describe("ExtractSlice", func() {
 })
 
 var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("extracts typed values for named groups", func() {
 		pattern := `^(?P<word>\w+)-(?P<number>\d+)-(?P<float>\d+\.\d+)-(?P<dots>\.+)$`
 
@@ -356,10 +348,6 @@ var DescribeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func()
 })
 
 var DescribeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("supports string values", func() {
 		pattern := `^(\w+)$`
 
@@ -578,10 +566,6 @@ var DescribeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", fu
 })
 
 var DescribeExtractToStruct = Describe("ExtractToStruct", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	type Sample struct {
 		Word   string
 		Number uint8
@@ -718,10 +702,6 @@ var DescribeExtractToStruct = Describe("ExtractToStruct", func() {
 })
 
 var DescribeMapValues = Describe("MapValues", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("maps values while preserving keys", func() {
 		input := map[string]int{"a": 1, "b": 2}
 		expected := map[string]string{"a": "1", "b": "2"}
@@ -746,10 +726,6 @@ var DescribeMapValues = Describe("MapValues", func() {
 })
 
 var DescribeInvalidRegex = Describe("InvalidRegex", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("returns an error for ExtractGroups", func() {
 		_, err := ExtractGroups("value", "(")
 		tAssert.ErrorIs(err, ErrInvalidRegex)
@@ -779,3 +755,179 @@ var DescribeInvalidRegex = Describe("InvalidRegex", func() {
 		tAssert.ErrorIs(err, ErrInvalidRegex)
 	})
 })
+
+func BenchmarkExtractGroups(b *testing.B) {
+	pattern := `^(?P<number>\d+)(?P<word>\w+)`
+	input := "100w"
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ExtractGroups(input, pattern)
+	}
+}
+
+func BenchmarkExtractSlice(b *testing.B) {
+	pattern := `^(\w+)-(\d+)$`
+	input := "note-42"
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ExtractSlice[string](input, pattern)
+	}
+}
+
+func BenchmarkExtractTypedNamedGroups(b *testing.B) {
+	pattern := `^(?P<word>\w+)-(?P<number>\d+)-(?P<float>\d+\.\d+)$`
+	input := "hello-42-3.14"
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ExtractTypedNamedGroups[any](input, pattern)
+	}
+}
+
+func BenchmarkExtractTypedUnnamedGroups(b *testing.B) {
+	pattern := `^(\d+)-(\w+)$`
+	input := "123-abc"
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ExtractTypedUnnamedGroups[[]any](input, pattern)
+	}
+}
+
+func BenchmarkExtractToStruct(b *testing.B) {
+	pattern := `^(?P<Word>\w+)-(?P<Number>\d+)$`
+	input := "hello-42"
+
+	type Sample struct {
+		Word   string
+		Number uint8
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ExtractToStruct[Sample](input, pattern)
+	}
+}
+
+func BenchmarkMapValues(b *testing.B) {
+	input := map[string]int{"a": 1, "b": 2, "c": 3}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = MapValues(input, strconv.Itoa)
+	}
+}
+
+func BenchmarkCompileRegexValid(b *testing.B) {
+	pattern := `^(?P<number>\d+)(?P<word>\w+)$`
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = compileRegex(pattern)
+	}
+}
+
+func BenchmarkCompileRegexInvalid(b *testing.B) {
+	pattern := "("
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = compileRegex(pattern)
+	}
+}
+
+func BenchmarkParseCaptureTree(b *testing.B) {
+	pattern := `^(?P<outer>(?P<inner>\d+)-((?P<tail>\w+)))$`
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = parseCaptureTree(pattern)
+	}
+}
+
+func BenchmarkExtractGroupsVariants(b *testing.B) {
+	pattern := `^(?P<number>\d+)(?P<word>\w+)$`
+	input := "100w"
+
+	b.Run("compile+extract", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_, _ = ExtractGroups(input, pattern)
+		}
+	})
+
+	b.Run("precompiled", func(b *testing.B) {
+		regex, err := compileRegex(pattern)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_, _ = extractGroupsWithRegex(input, regex)
+		}
+	})
+}
+
+func BenchmarkExtractGroupsNoMatch(b *testing.B) {
+	pattern := `^(?P<number>\d+)(?P<word>\w+)$`
+	input := "nope"
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ExtractGroups(input, pattern)
+	}
+}
+
+func BenchmarkExtractGroupsInvalidName(b *testing.B) {
+	pattern := `^(?P<bad-name>\d+)$`
+	input := "10"
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ExtractGroups(input, pattern)
+	}
+}
+
+func BenchmarkExtractTypedNamedGroupsStructType(b *testing.B) {
+	pattern := `^(?P<word>\w+)$`
+	input := "hello"
+	type Expected struct {
+		Word string
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, _ = ExtractTypedNamedGroups[Expected](input, pattern)
+	}
+}
+
+func extractGroupsWithRegex(input string, regex *regexp.Regexp) (map[string]string, error) {
+	submatches := regex.FindStringSubmatch(input)
+	if len(submatches) == 0 {
+		return nil, ErrNoMatch
+	}
+
+	groupNames := regex.SubexpNames()
+	extracted := make(map[string]string, len(groupNames))
+
+	for index, name := range groupNames {
+		if index == 0 || name == "" {
+			continue
+		}
+
+		if strings.Contains(name, "-") {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidGroupName, name)
+		}
+
+		if _, exists := extracted[name]; exists {
+			return nil, fmt.Errorf("%w: %s", ErrDuplicateGroupName, name)
+		}
+
+		extracted[name] = submatches[index]
+	}
+
+	return extracted, nil
+}

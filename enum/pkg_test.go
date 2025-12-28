@@ -5,20 +5,17 @@ import (
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
-	testifyassert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 )
 
-var tAssert *testifyassert.Assertions
+var tAssert *assert.Assertions
 
 func TestEnum(t *testing.T) {
+	tAssert = assert.New(t)
 	RunSpecs(t, "Enum Suite")
 }
 
 var DescribeNewEnum = Describe("NewEnum", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("creates an enum with the provided options", func() {
 		enum := NewEnum[string]("a", "b", "c")
 
@@ -27,10 +24,6 @@ var DescribeNewEnum = Describe("NewEnum", func() {
 })
 
 var DescribeEnumOptions = Describe("Enum.Options", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("returns options in the provided order", func() {
 		enum := NewEnum[int](1, 2, 3)
 		options := enum.Options()
@@ -40,10 +33,6 @@ var DescribeEnumOptions = Describe("Enum.Options", func() {
 })
 
 var DescribeEnumValidate = Describe("Enum.Validate", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("validates whether a value is included", func() {
 		enum := NewEnum[string]("a", "b", "c")
 
@@ -53,10 +42,6 @@ var DescribeEnumValidate = Describe("Enum.Validate", func() {
 })
 
 var DescribeEnumParse = Describe("Enum.Parse", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	It("parses values and returns errors for invalid input", func() {
 		enum := NewEnum[int](1, 2, 3)
 

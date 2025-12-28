@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
-	testifyassert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 )
 
-var tAssert *testifyassert.Assertions
+var tAssert *assert.Assertions
 
 func TestMode(t *testing.T) {
+	tAssert = assert.New(t)
 	RunSpecs(t, "Mode Suite")
 }
 
@@ -21,10 +22,6 @@ func resetBuildMode() {
 }
 
 var DescribeNewModeOperator = Describe("NewModeOperator", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	AfterEach(resetBuildMode)
 
 	It("defaults to development mode when buildMode is empty", func() {
@@ -53,10 +50,6 @@ var DescribeNewModeOperator = Describe("NewModeOperator", func() {
 })
 
 var DescribeModeOperator = Describe("ModeOperator", func() {
-	BeforeEach(func() {
-		tAssert = testifyassert.New(GinkgoT())
-	})
-
 	AfterEach(resetBuildMode)
 
 	DescribeTable("mode checks", func(setBuildMode string, isDev bool, isProd bool) {

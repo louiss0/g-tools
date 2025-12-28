@@ -33,11 +33,11 @@ regex_extract). Changes should keep APIs small, idiomatic, and fully tested.
 
 - Tests must match the exact style used in `regex_extract/pkg_test.go`.
 - Use same-package tests in `*_test.go`, with a `Test<Package>` function that
-  calls `RunSpecs(t, "<Package> Suite")`.
+  initializes `tAssert = testifyassert.New(t)` and calls
+  `RunSpecs(t, "<Package> Suite")`.
 - Define specs as package-level vars like `var DescribeX = Describe("X", ...)`.
-- In every `Describe`, initialize `tAssert` in `BeforeEach` with
-  `testifyassert.New(GinkgoT())` and use `tAssert` for all assertions
-  (`NoError`, `ErrorIs`, `Equal`, `Len`, `Nil`, `Empty`).
+- Use the shared `tAssert` for all assertions (`NoError`, `ErrorIs`, `Equal`,
+  `Len`, `Nil`, `Empty`) and do not reinitialize it in `BeforeEach`.
 - Keep test data explicit and local (`pattern`, `input`, `expected`, `actual`,
   `err`), and define helper types inside the `Describe` where they are used.
 
