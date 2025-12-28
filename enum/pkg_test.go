@@ -3,67 +3,83 @@ package enum
 import (
 	"fmt"
 	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	testifyassert "github.com/stretchr/testify/assert"
 )
 
-func TestNewEnum(t *testing.T) {
-	enum := NewEnum[string]("a", "b", "c")
-
-	if len(enum.Options()) != 3 {
-		t.Errorf("Expected 3 options, got %d", len(enum.Options()))
-	}
+func TestEnum(t *testing.T) {
+	RunSpecs(t, "Enum Suite")
 }
 
-func TestEnum_Options(t *testing.T) {
-	enum := NewEnum[int](1, 2, 3)
-	options := enum.Options()
+var describeNewEnum = Describe("NewEnum", func() {
+	var assertions *testifyassert.Assertions
 
-	if len(options) != 3 {
-		t.Fatalf("Expected 3 options, but got %d", len(options))
-	}
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
+	})
 
-	if options[0] != 1 || options[1] != 2 || options[2] != 3 {
-		t.Errorf("Options are not as expected: %v", options)
-	}
-}
+	It("creates an enum with the provided options", func() {
+		enum := NewEnum[string]("a", "b", "c")
 
-func TestEnum_Validate(t *testing.T) {
-	enum := NewEnum[string]("a", "b", "c")
+		assertions.Len(enum.Options(), 3)
+	})
+})
 
-	if !enum.Validate("a") {
-		t.Errorf("Expected 'a' to be valid, but it wasn't")
-	}
+var describeEnumOptions = Describe("Enum.Options", func() {
+	var assertions *testifyassert.Assertions
 
-	if enum.Validate("d") {
-		t.Errorf("Expected 'd' to be invalid, but it was")
-	}
-}
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
+	})
 
-func TestEnum_Parse(t *testing.T) {
-	enum := NewEnum[int](1, 2, 3)
+	It("returns options in the provided order", func() {
+		enum := NewEnum[int](1, 2, 3)
+		options := enum.Options()
 
-	// Test valid parse
-	val, err := enum.Parse(1)
-	if err != nil {
-		t.Errorf("Parse of valid value returned an unexpected error: %v", err)
-	}
-	if val != 1 {
-		t.Errorf("Parse of valid value returned wrong value. Expected: %v, Got: %v", 1, val)
-	}
+		assertions.Equal([]int{1, 2, 3}, options)
+	})
+})
 
-	// Test invalid parse
-	val, err = enum.Parse(4)
-	if err == nil {
-		t.Errorf("Parse of invalid value did not return an error")
-	}
-	var zeroU int // Zero value for int (U is int here)
-	if val != zeroU {
-		t.Errorf("Parse of invalid value returned non-zero value. Expected: %v, Got: %v", zeroU, val)
-	}
-	expectedError := "invalid value 4; it must be one of [1 2 3]"
-	if err.Error() != expectedError {
-		t.Errorf("Parse of invalid value returned wrong error message.\nExpected: %q\nGot: %q", expectedError, err.Error())
-	}
-}
+var describeEnumValidate = Describe("Enum.Validate", func() {
+	var assertions *testifyassert.Assertions
+
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
+	})
+
+	It("validates whether a value is included", func() {
+		enum := NewEnum[string]("a", "b", "c")
+
+		assertions.True(enum.Validate("a"))
+		assertions.False(enum.Validate("d"))
+	})
+})
+
+var describeEnumParse = Describe("Enum.Parse", func() {
+	var assertions *testifyassert.Assertions
+
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
+	})
+
+	It("parses values and returns errors for invalid input", func() {
+		enum := NewEnum[int](1, 2, 3)
+
+		value, err := enum.Parse(1)
+		assertions.NoError(err)
+		assertions.Equal(1, value)
+
+		value, err = enum.Parse(4)
+		hasError := assertions.Error(err)
+		assertions.Equal(0, value)
+
+		if hasError {
+			expectedError := "invalid value 4; it must be one of [1 2 3]"
+			assertions.Equal(expectedError, err.Error())
+		}
+	})
+})
 
 func ExampleNewEnum() {
 	enum := NewEnum[string]("a", "b", "c")

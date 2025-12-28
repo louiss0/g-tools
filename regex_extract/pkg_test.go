@@ -4,13 +4,22 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo/v2"
+	testifyassert "github.com/stretchr/testify/assert"
 )
 
-func TestExtractGroups(t *testing.T) {
-	assert := assert.New(t)
+func TestRegexExtract(t *testing.T) {
+	RunSpecs(t, "Regex Extract Suite")
+}
 
-	t.Run("Extracts named groups into a map", func(t *testing.T) {
+var describeExtractGroups = Describe("ExtractGroups", func() {
+	var assertions *testifyassert.Assertions
+
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
+	})
+
+	It("extracts named groups into a map", func() {
 		regex := regexp.MustCompile(`^(?P<number>\d+)(?P<word>\w+)`)
 
 		input := "100w"
@@ -19,11 +28,11 @@ func TestExtractGroups(t *testing.T) {
 			"word":   "w",
 		}
 		actual, err := ExtractGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Preserves mixed-case group names", func(t *testing.T) {
+	It("preserves mixed-case group names", func() {
 		regex := regexp.MustCompile(`^(?P<number>\d+)(?P<Word>\w+)`)
 
 		input := "100w"
@@ -32,24 +41,27 @@ func TestExtractGroups(t *testing.T) {
 			"Word":   "w",
 		}
 		actual, err := ExtractGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Returns an error when there is no match", func(t *testing.T) {
+	It("returns an error when there is no match", func() {
 		regex := regexp.MustCompile(`^(?P<NUMBER>\d+)(?P<WORD>\w+)`)
 
 		input := "nope"
 		_, err := ExtractGroups(input, regex)
-		assert.ErrorIs(err, ErrNoMatch)
+		assertions.ErrorIs(err, ErrNoMatch)
+	})
+})
+
+var describeExtractTypedNamedGroups = Describe("ExtractTypedNamedGroups", func() {
+	var assertions *testifyassert.Assertions
+
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
 	})
 
-}
-
-func TestExtractTypedNamedGroups(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("Extracts typed values for named groups", func(t *testing.T) {
+	It("extracts typed values for named groups", func() {
 		regex := regexp.MustCompile(`^(?P<word>\w+)-(?P<number>\d+)-(?P<float>\d+\.\d+)-(?P<dots>\.+)$`)
 
 		input := "hello-42-3.14-..."
@@ -61,11 +73,11 @@ func TestExtractTypedNamedGroups(t *testing.T) {
 		}
 
 		actual, err := ExtractTypedNamedGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Extracts nested maps for named groups", func(t *testing.T) {
+	It("extracts nested maps for named groups", func() {
 		regex := regexp.MustCompile(`^(?P<outer>(?P<inner>\d+)-(?P<tail>\w+))$`)
 
 		input := "123-abc"
@@ -77,11 +89,11 @@ func TestExtractTypedNamedGroups(t *testing.T) {
 		}
 
 		actual, err := ExtractTypedNamedGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Uses range-based integer types for named groups", func(t *testing.T) {
+	It("uses range-based integer types for named groups", func() {
 		regex := regexp.MustCompile(`^(?P<small>\d+)-(?P<medium>\d+)-(?P<large>\d+)-(?P<huge>\d+)$`)
 
 		input := "127-32767-2147483647-2147483648"
@@ -93,11 +105,11 @@ func TestExtractTypedNamedGroups(t *testing.T) {
 		}
 
 		actual, err := ExtractTypedNamedGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Uses range-based float types for named groups", func(t *testing.T) {
+	It("uses range-based float types for named groups", func() {
 		regex := regexp.MustCompile(`^(?P<small>\d+\.\d+)-(?P<large>\d+\.\d+)$`)
 
 		input := "3.14-340282350000000000000000000000000000000.0"
@@ -107,26 +119,30 @@ func TestExtractTypedNamedGroups(t *testing.T) {
 		}
 
 		actual, err := ExtractTypedNamedGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
-}
+})
 
-func TestExtractTypedUnnamedGroups(t *testing.T) {
-	assert := assert.New(t)
+var describeExtractTypedUnnamedGroups = Describe("ExtractTypedUnnamedGroups", func() {
+	var assertions *testifyassert.Assertions
 
-	t.Run("Extracts typed values for unnamed groups", func(t *testing.T) {
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
+	})
+
+	It("extracts typed values for unnamed groups", func() {
 		regex := regexp.MustCompile(`^(\w+)-(\d+)-(\d+\.\d+)-(\.+)$`)
 
 		input := "hello-42-3.14-..."
 		expected := []any{"hello", uint8(42), float32(3.14), "..."}
 
 		actual, err := ExtractTypedUnnamedGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Extracts nested slices for unnamed groups", func(t *testing.T) {
+	It("extracts nested slices for unnamed groups", func() {
 		regex := regexp.MustCompile(`^((\d+)-(\w+))$`)
 
 		input := "123-abc"
@@ -135,11 +151,11 @@ func TestExtractTypedUnnamedGroups(t *testing.T) {
 		}
 
 		actual, err := ExtractTypedUnnamedGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Uses range-based integer types for unnamed groups", func(t *testing.T) {
+	It("uses range-based integer types for unnamed groups", func() {
 		regex := regexp.MustCompile(`^(\d+)-(\d+)-(\d+)-(\d+)$`)
 
 		input := "127-32767-2147483647-2147483648"
@@ -151,11 +167,11 @@ func TestExtractTypedUnnamedGroups(t *testing.T) {
 		}
 
 		actual, err := ExtractTypedUnnamedGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Uses range-based float types for unnamed groups", func(t *testing.T) {
+	It("uses range-based float types for unnamed groups", func() {
 		regex := regexp.MustCompile(`^(\d+\.\d+)-(\d+\.\d+)$`)
 
 		input := "3.14-340282350000000000000000000000000000000.0"
@@ -165,13 +181,17 @@ func TestExtractTypedUnnamedGroups(t *testing.T) {
 		}
 
 		actual, err := ExtractTypedUnnamedGroups(input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
-}
+})
 
-func TestExtractToStruct(t *testing.T) {
-	assert := assert.New(t)
+var describeExtractToStruct = Describe("ExtractToStruct", func() {
+	var assertions *testifyassert.Assertions
+
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
+	})
 
 	type Sample struct {
 		Word   string
@@ -189,7 +209,7 @@ func TestExtractToStruct(t *testing.T) {
 		Outer Nested
 	}
 
-	t.Run("Extracts typed values into struct fields", func(t *testing.T) {
+	It("extracts typed values into struct fields", func() {
 		regex := regexp.MustCompile(`^(?P<Word>\w+)-(?P<Number>\d+)-(?P<Float>\d+\.\d+)-(?P<Dots>\.+)$`)
 
 		input := "hello-42-3.14-..."
@@ -201,11 +221,11 @@ func TestExtractToStruct(t *testing.T) {
 		}
 
 		actual, err := ExtractToStruct[Sample](input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Extracts nested groups into nested structs", func(t *testing.T) {
+	It("extracts nested groups into nested structs", func() {
 		regex := regexp.MustCompile(`^(?P<Outer>(?P<Inner>\d+)-(?P<Tail>\w+))$`)
 
 		input := "123-abc"
@@ -217,23 +237,23 @@ func TestExtractToStruct(t *testing.T) {
 		}
 
 		actual, err := ExtractToStruct[Container](input, regex)
-		assert.NoError(err)
-		assert.Equal(expected, actual)
+		assertions.NoError(err)
+		assertions.Equal(expected, actual)
 	})
 
-	t.Run("Returns an error for invalid struct field names", func(t *testing.T) {
+	It("returns an error for invalid struct field names", func() {
 		regex := regexp.MustCompile(`^(?P<word>\w+)$`)
 
 		input := "hello"
 		_, err := ExtractToStruct[Sample](input, regex)
-		assert.Error(err)
+		assertions.Error(err)
 	})
 
-	t.Run("Returns an error for missing struct fields", func(t *testing.T) {
+	It("returns an error for missing struct fields", func() {
 		regex := regexp.MustCompile(`^(?P<Missing>\w+)$`)
 
 		input := "hello"
 		_, err := ExtractToStruct[Sample](input, regex)
-		assert.Error(err)
+		assertions.Error(err)
 	})
-}
+})

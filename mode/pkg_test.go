@@ -3,7 +3,14 @@ package mode
 import (
 	"fmt"
 	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	testifyassert "github.com/stretchr/testify/assert"
 )
+
+func TestMode(t *testing.T) {
+	RunSpecs(t, "Mode Suite")
+}
 
 // Helper function to reset buildMode after each test that modifies it.
 // This is crucial for isolating tests that rely on a global package variable.
@@ -11,108 +18,88 @@ func resetBuildMode() {
 	buildMode = "" // Reset to default (development)
 }
 
-func TestNewModeOperator_Default(t *testing.T) {
-	// Ensure buildMode is not set for this test
-	defer resetBuildMode()
-	buildMode = ""
+var describeNewModeOperator = Describe("NewModeOperator", func() {
+	var assertions *testifyassert.Assertions
 
-	op := NewModeOperator()
-	if !op.IsDevelopmentMode() {
-		t.Errorf("NewModeOperator() with empty buildMode: expected IsDevelopmentMode() to be true, got %t", op.IsDevelopmentMode())
-	}
-	if op.GetMode() != DEVELOPMENT {
-		t.Errorf("NewModeOperator() with empty buildMode: expected mode %q, got %q", DEVELOPMENT, op.GetMode())
-	}
-}
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
+	})
 
-func TestNewModeOperator_Production(t *testing.T) {
-	defer resetBuildMode()
-	buildMode = "production"
+	AfterEach(resetBuildMode)
 
-	op := NewModeOperator()
-	if !op.IsProductionMode() {
-		t.Errorf("NewModeOperator() with buildMode 'production': expected IsProductionMode() to be true, got %t", op.IsProductionMode())
-	}
-	if op.GetMode() != PRODUCTION {
-		t.Errorf("NewModeOperator() with buildMode 'production': expected mode %q, got %q", PRODUCTION, op.GetMode())
-	}
-}
+	It("defaults to development mode when buildMode is empty", func() {
+		buildMode = ""
 
-func TestNewModeOperator_Invalid(t *testing.T) {
-	defer resetBuildMode()
-	buildMode = "unrecognized" // An invalid mode string
+		op := NewModeOperator()
+		assertions.True(op.IsDevelopmentMode())
+		assertions.Equal(DEVELOPMENT, op.GetMode())
+	})
 
-	op := NewModeOperator()
-	if !op.IsDevelopmentMode() {
-		t.Errorf("NewModeOperator() with invalid buildMode: expected IsDevelopmentMode() to be true, got %t", op.IsDevelopmentMode())
-	}
-	if op.GetMode() != DEVELOPMENT {
-		t.Errorf("NewModeOperator() with invalid buildMode: expected mode %q, got %q", DEVELOPMENT, op.GetMode())
-	}
-}
+	It("uses production mode when buildMode is production", func() {
+		buildMode = "production"
 
-func TestModeOperator_ModeChecks(t *testing.T) {
-	tests := []struct {
-		name         string
-		setBuildMode string
-		isDev        bool
-		isProd       bool
-	}{
-		{"Default (empty)", "", true, false},
-		{"Development", "development", true, false},
-		{"Production", "production", false, true},
-		{"Staging (unrecognized)", "staging", true, false},
-	}
+		op := NewModeOperator()
+		assertions.True(op.IsProductionMode())
+		assertions.Equal(PRODUCTION, op.GetMode())
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			defer resetBuildMode()
-			buildMode = tt.setBuildMode
+	It("falls back to development mode on invalid buildMode", func() {
+		buildMode = "unrecognized"
+
+		op := NewModeOperator()
+		assertions.True(op.IsDevelopmentMode())
+		assertions.Equal(DEVELOPMENT, op.GetMode())
+	})
+})
+
+var describeModeOperator = Describe("ModeOperator", func() {
+	var assertions *testifyassert.Assertions
+
+	BeforeEach(func() {
+		assertions = testifyassert.New(GinkgoT())
+	})
+
+	AfterEach(resetBuildMode)
+
+	DescribeTable("mode checks", func(setBuildMode string, isDev bool, isProd bool) {
+		buildMode = setBuildMode
+		op := NewModeOperator()
+
+		assertions.Equal(isDev, op.IsDevelopmentMode())
+		assertions.Equal(isProd, op.IsProductionMode())
+	},
+		Entry("default (empty)", "", true, false),
+		Entry("development", "development", true, false),
+		Entry("production", "production", false, true),
+		Entry("staging (unrecognized)", "staging", true, false),
+	)
+
+	Describe("ExecuteIfModeIsProduction", func() {
+		It("executes the callback in production mode", func() {
+			buildMode = "production"
 			op := NewModeOperator()
 
-			if op.IsDevelopmentMode() != tt.isDev {
-				t.Errorf("IsDevelopmentMode() for %q: expected %t, got %t", tt.setBuildMode, tt.isDev, op.IsDevelopmentMode())
-			}
-			if op.IsProductionMode() != tt.isProd {
-				t.Errorf("IsProductionMode() for %q: expected %t, got %t", tt.setBuildMode, tt.isProd, op.IsProductionMode())
-			}
+			executed := false
+			op.ExecuteIfModeIsProduction(func() {
+				executed = true
+			})
+
+			assertions.True(executed)
 		})
-	}
-}
 
-func TestModeOperator_ExecuteIfModeIsProduction(t *testing.T) {
-	var executed bool
+		It("skips the callback in development mode", func() {
+			buildMode = "development"
+			op := NewModeOperator()
 
-	// Case 1: Production mode - callback should execute
-	t.Run("ProductionMode", func(t *testing.T) {
-		defer resetBuildMode()
-		buildMode = "production"
-		op := NewModeOperator()
+			executed := false
+			op.ExecuteIfModeIsProduction(func() {
+				executed = true
+			})
 
-		executed = false
-		op.ExecuteIfModeIsProduction(func() {
-			executed = true
+			assertions.False(executed)
 		})
-		if !executed {
-			t.Errorf("Callback not executed in production mode")
-		}
 	})
-
-	// Case 2: Development mode - callback should NOT execute
-	t.Run("DevelopmentMode", func(t *testing.T) {
-		defer resetBuildMode()
-		buildMode = "development"
-		op := NewModeOperator()
-
-		executed = false
-		op.ExecuteIfModeIsProduction(func() {
-			executed = true
-		})
-		if executed {
-			t.Errorf("Callback executed in development mode")
-		}
-	})
-}
+})
 
 func ExampleNewModeOperator() {
 	// To run this example with a specific mode, use -ldflags:
