@@ -1,7 +1,10 @@
 package regex_extract
 
 import (
+	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -856,115 +859,14 @@ func BenchmarkExtractGroupsVariants(b *testing.B) {
 	})
 
 	b.Run("precompiled", func(b *testing.B) {
-		compiled, err := CompilePattern(pattern)
+		regex, err := compileRegex(pattern)
 		if err != nil {
 			b.Fatal(err)
 		}
 
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			_, _ = compiled.ExtractGroups(input)
-		}
-	})
-}
-
-func BenchmarkExtractSliceVariants(b *testing.B) {
-	pattern := `^(\w+)-(\d+)$`
-	input := "note-42"
-
-	b.Run("compile+extract", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			_, _ = ExtractSlice[string](input, pattern)
-		}
-	})
-
-	b.Run("precompiled", func(b *testing.B) {
-		compiled, err := CompilePattern(pattern)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			_, _ = ExtractSliceWithCompiled[string](input, compiled)
-		}
-	})
-}
-
-func BenchmarkExtractTypedNamedGroupsVariants(b *testing.B) {
-	pattern := `^(?P<word>\w+)-(?P<number>\d+)-(?P<float>\d+\.\d+)$`
-	input := "hello-42-3.14"
-
-	b.Run("compile+extract", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			_, _ = ExtractTypedNamedGroups[any](input, pattern)
-		}
-	})
-
-	b.Run("precompiled", func(b *testing.B) {
-		compiled, err := CompilePattern(pattern)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			_, _ = ExtractTypedNamedGroupsWithCompiled[any](input, compiled)
-		}
-	})
-}
-
-func BenchmarkExtractTypedUnnamedGroupsVariants(b *testing.B) {
-	pattern := `^(\d+)-(\w+)$`
-	input := "123-abc"
-
-	b.Run("compile+extract", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			_, _ = ExtractTypedUnnamedGroups[[]any](input, pattern)
-		}
-	})
-
-	b.Run("precompiled", func(b *testing.B) {
-		compiled, err := CompilePattern(pattern)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			_, _ = ExtractTypedUnnamedGroupsWithCompiled[[]any](input, compiled)
-		}
-	})
-}
-
-func BenchmarkExtractToStructVariants(b *testing.B) {
-	pattern := `^(?P<Word>\w+)-(?P<Number>\d+)$`
-	input := "hello-42"
-
-	type Sample struct {
-		Word   string
-		Number uint8
-	}
-
-	b.Run("compile+extract", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			_, _ = ExtractToStruct[Sample](input, pattern)
-		}
-	})
-
-	b.Run("precompiled", func(b *testing.B) {
-		compiled, err := CompilePattern(pattern)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			_, _ = ExtractToStructWithCompiled[Sample](input, compiled)
+			_, _ = extractGroupsWithRegex(input, regex)
 		}
 	})
 }
@@ -1000,4 +902,32 @@ func BenchmarkExtractTypedNamedGroupsStructType(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = ExtractTypedNamedGroups[Expected](input, pattern)
 	}
+}
+
+func extractGroupsWithRegex(input string, regex *regexp.Regexp) (map[string]string, error) {
+	submatches := regex.FindStringSubmatch(input)
+	if len(submatches) == 0 {
+		return nil, ErrNoMatch
+	}
+
+	groupNames := regex.SubexpNames()
+	extracted := make(map[string]string, len(groupNames))
+
+	for index, name := range groupNames {
+		if index == 0 || name == "" {
+			continue
+		}
+
+		if strings.Contains(name, "-") {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidGroupName, name)
+		}
+
+		if _, exists := extracted[name]; exists {
+			return nil, fmt.Errorf("%w: %s", ErrDuplicateGroupName, name)
+		}
+
+		extracted[name] = submatches[index]
+	}
+
+	return extracted, nil
 }

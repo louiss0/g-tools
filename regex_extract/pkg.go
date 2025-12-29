@@ -23,6 +23,9 @@ var (
 
 	floatPattern = regexp.MustCompile(`^\d+\.\d+$`)
 	digitPattern = regexp.MustCompile(`^\d+$`)
+
+	regexCache       sync.Map
+	captureTreeCache sync.Map
 )
 
 type SliceValue interface {
@@ -44,77 +47,17 @@ func MapValues[key comparable, input any, output any](values map[key]input, mapp
 }
 
 func ExtractGroups(input string, pattern string) (map[string]string, error) {
-	compiled, err := CompilePattern(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	return compiled.ExtractGroups(input)
-}
-
-func ExtractSlice[T SliceValue](input string, pattern string) ([]T, error) {
-	compiled, err := CompilePattern(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	return ExtractSliceWithCompiled[T](input, compiled)
-}
-
-func ExtractTypedNamedGroups[T any](input string, pattern string) (map[string]T, error) {
-	compiled, err := CompilePattern(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	return ExtractTypedNamedGroupsWithCompiled[T](input, compiled)
-}
-
-func ExtractToStruct[T any](input string, pattern string) (T, error) {
-	compiled, err := CompilePattern(pattern)
-	if err != nil {
-		var zero T
-		return zero, err
-	}
-
-	return ExtractToStructWithCompiled[T](input, compiled)
-}
-
-func ExtractTypedUnnamedGroups[T any](input string, pattern string) ([]T, error) {
-	compiled, err := CompilePattern(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	return ExtractTypedUnnamedGroupsWithCompiled[T](input, compiled)
-}
-
-type CompiledPattern struct {
-	pattern          string
-	regex            *regexp.Regexp
-	captureTreeOnce  sync.Once
-	captureTreeNodes []*captureNode
-}
-
-func CompilePattern(pattern string) (*CompiledPattern, error) {
 	regex, err := compileRegex(pattern)
 	if err != nil {
 		return nil, err
 	}
 
-	return &CompiledPattern{
-		pattern: pattern,
-		regex:   regex,
-	}, nil
-}
-
-func (compiled *CompiledPattern) ExtractGroups(input string) (map[string]string, error) {
-	submatches := compiled.regex.FindStringSubmatch(input)
+	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
 	}
 
-	groupNames := compiled.regex.SubexpNames()
+	groupNames := regex.SubexpNames()
 	extracted := make(map[string]string, len(groupNames))
 
 	for index, name := range groupNames {
@@ -136,8 +79,13 @@ func (compiled *CompiledPattern) ExtractGroups(input string) (map[string]string,
 	return extracted, nil
 }
 
-func ExtractSliceWithCompiled[T SliceValue](input string, compiled *CompiledPattern) ([]T, error) {
-	submatches := compiled.regex.FindStringSubmatch(input)
+func ExtractSlice[T SliceValue](input string, pattern string) ([]T, error) {
+	regex, err := compileRegex(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
 	}
@@ -154,8 +102,13 @@ func ExtractSliceWithCompiled[T SliceValue](input string, compiled *CompiledPatt
 	return extracted, nil
 }
 
-func ExtractTypedNamedGroupsWithCompiled[T any](input string, compiled *CompiledPattern) (map[string]T, error) {
-	submatches := compiled.regex.FindStringSubmatch(input)
+func ExtractTypedNamedGroups[T any](input string, pattern string) (map[string]T, error) {
+	regex, err := compileRegex(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
 	}
@@ -164,7 +117,7 @@ func ExtractTypedNamedGroupsWithCompiled[T any](input string, compiled *Compiled
 		return nil, ErrExpectedStruct
 	}
 
-	captureTree := compiled.captureTree()
+	captureTree := loadCaptureTree(regex.String())
 	extracted := map[string]any{}
 
 	for _, node := range captureTree {
@@ -194,9 +147,14 @@ func ExtractTypedNamedGroupsWithCompiled[T any](input string, compiled *Compiled
 	return convertNamedGroupValues[T](extracted)
 }
 
-func ExtractToStructWithCompiled[T any](input string, compiled *CompiledPattern) (T, error) {
+func ExtractToStruct[T any](input string, pattern string) (T, error) {
 	var result T
-	submatches := compiled.regex.FindStringSubmatch(input)
+	regex, err := compileRegex(pattern)
+	if err != nil {
+		return result, err
+	}
+
+	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return result, ErrNoMatch
 	}
@@ -208,7 +166,7 @@ func ExtractToStructWithCompiled[T any](input string, compiled *CompiledPattern)
 
 	structValue := reflect.New(targetType).Elem()
 
-	captureTree := compiled.captureTree()
+	captureTree := loadCaptureTree(regex.String())
 	if err := applyStructNodes(structValue, captureTree, submatches); err != nil {
 		return result, err
 	}
@@ -216,13 +174,18 @@ func ExtractToStructWithCompiled[T any](input string, compiled *CompiledPattern)
 	return structValue.Interface().(T), nil
 }
 
-func ExtractTypedUnnamedGroupsWithCompiled[T any](input string, compiled *CompiledPattern) ([]T, error) {
-	submatches := compiled.regex.FindStringSubmatch(input)
+func ExtractTypedUnnamedGroups[T any](input string, pattern string) ([]T, error) {
+	regex, err := compileRegex(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	submatches := regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
 	}
 
-	captureTree := compiled.captureTree()
+	captureTree := loadCaptureTree(regex.String())
 	extracted := make([]T, 0, len(captureTree))
 
 	for _, node := range captureTree {
@@ -240,14 +203,6 @@ func ExtractTypedUnnamedGroupsWithCompiled[T any](input string, compiled *Compil
 	}
 
 	return extracted, nil
-}
-
-func (compiled *CompiledPattern) captureTree() []*captureNode {
-	compiled.captureTreeOnce.Do(func() {
-		compiled.captureTreeNodes = parseCaptureTree(compiled.pattern)
-	})
-
-	return compiled.captureTreeNodes
 }
 
 type captureNode struct {
@@ -481,11 +436,26 @@ func isDigit(value string) bool {
 }
 
 func compileRegex(pattern string) (*regexp.Regexp, error) {
+	if cached, ok := regexCache.Load(pattern); ok {
+		return cached.(*regexp.Regexp), nil
+	}
+
 	regex, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidRegex, err)
 	}
+	regexCache.Store(pattern, regex)
 	return regex, nil
+}
+
+func loadCaptureTree(pattern string) []*captureNode {
+	if cached, ok := captureTreeCache.Load(pattern); ok {
+		return cached.([]*captureNode)
+	}
+
+	captureTree := parseCaptureTree(pattern)
+	captureTreeCache.Store(pattern, captureTree)
+	return captureTree
 }
 
 func parseSliceValue[T SliceValue](value string) (T, error) {
