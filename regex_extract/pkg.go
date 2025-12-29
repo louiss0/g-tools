@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var (
@@ -22,6 +23,9 @@ var (
 
 	floatPattern = regexp.MustCompile(`^\d+\.\d+$`)
 	digitPattern = regexp.MustCompile(`^\d+$`)
+
+	regexCache       sync.Map
+	captureTreeCache sync.Map
 )
 
 type SliceValue interface {
@@ -113,7 +117,7 @@ func ExtractTypedNamedGroups[T any](input string, pattern string) (map[string]T,
 		return nil, ErrExpectedStruct
 	}
 
-	captureTree := parseCaptureTree(regex.String())
+	captureTree := loadCaptureTree(regex.String())
 	extracted := map[string]any{}
 
 	for _, node := range captureTree {
@@ -162,7 +166,7 @@ func ExtractToStruct[T any](input string, pattern string) (T, error) {
 
 	structValue := reflect.New(targetType).Elem()
 
-	captureTree := parseCaptureTree(regex.String())
+	captureTree := loadCaptureTree(regex.String())
 	if err := applyStructNodes(structValue, captureTree, submatches); err != nil {
 		return result, err
 	}
@@ -181,7 +185,7 @@ func ExtractTypedUnnamedGroups[T any](input string, pattern string) ([]T, error)
 		return nil, ErrNoMatch
 	}
 
-	captureTree := parseCaptureTree(regex.String())
+	captureTree := loadCaptureTree(regex.String())
 	extracted := make([]T, 0, len(captureTree))
 
 	for _, node := range captureTree {
@@ -432,11 +436,26 @@ func isDigit(value string) bool {
 }
 
 func compileRegex(pattern string) (*regexp.Regexp, error) {
+	if cached, ok := regexCache.Load(pattern); ok {
+		return cached.(*regexp.Regexp), nil
+	}
+
 	regex, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidRegex, err)
 	}
+	regexCache.Store(pattern, regex)
 	return regex, nil
+}
+
+func loadCaptureTree(pattern string) []*captureNode {
+	if cached, ok := captureTreeCache.Load(pattern); ok {
+		return cached.([]*captureNode)
+	}
+
+	captureTree := parseCaptureTree(pattern)
+	captureTreeCache.Store(pattern, captureTree)
+	return captureTree
 }
 
 func parseSliceValue[T SliceValue](value string) (T, error) {
