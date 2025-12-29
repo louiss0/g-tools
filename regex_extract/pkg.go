@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var (
@@ -43,17 +44,77 @@ func MapValues[key comparable, input any, output any](values map[key]input, mapp
 }
 
 func ExtractGroups(input string, pattern string) (map[string]string, error) {
+	compiled, err := CompilePattern(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	return compiled.ExtractGroups(input)
+}
+
+func ExtractSlice[T SliceValue](input string, pattern string) ([]T, error) {
+	compiled, err := CompilePattern(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	return ExtractSliceWithCompiled[T](input, compiled)
+}
+
+func ExtractTypedNamedGroups[T any](input string, pattern string) (map[string]T, error) {
+	compiled, err := CompilePattern(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	return ExtractTypedNamedGroupsWithCompiled[T](input, compiled)
+}
+
+func ExtractToStruct[T any](input string, pattern string) (T, error) {
+	compiled, err := CompilePattern(pattern)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+
+	return ExtractToStructWithCompiled[T](input, compiled)
+}
+
+func ExtractTypedUnnamedGroups[T any](input string, pattern string) ([]T, error) {
+	compiled, err := CompilePattern(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	return ExtractTypedUnnamedGroupsWithCompiled[T](input, compiled)
+}
+
+type CompiledPattern struct {
+	pattern          string
+	regex            *regexp.Regexp
+	captureTreeOnce  sync.Once
+	captureTreeNodes []*captureNode
+}
+
+func CompilePattern(pattern string) (*CompiledPattern, error) {
 	regex, err := compileRegex(pattern)
 	if err != nil {
 		return nil, err
 	}
 
-	submatches := regex.FindStringSubmatch(input)
+	return &CompiledPattern{
+		pattern: pattern,
+		regex:   regex,
+	}, nil
+}
+
+func (compiled *CompiledPattern) ExtractGroups(input string) (map[string]string, error) {
+	submatches := compiled.regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
 	}
 
-	groupNames := regex.SubexpNames()
+	groupNames := compiled.regex.SubexpNames()
 	extracted := make(map[string]string, len(groupNames))
 
 	for index, name := range groupNames {
@@ -75,13 +136,8 @@ func ExtractGroups(input string, pattern string) (map[string]string, error) {
 	return extracted, nil
 }
 
-func ExtractSlice[T SliceValue](input string, pattern string) ([]T, error) {
-	regex, err := compileRegex(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	submatches := regex.FindStringSubmatch(input)
+func ExtractSliceWithCompiled[T SliceValue](input string, compiled *CompiledPattern) ([]T, error) {
+	submatches := compiled.regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
 	}
@@ -98,13 +154,8 @@ func ExtractSlice[T SliceValue](input string, pattern string) ([]T, error) {
 	return extracted, nil
 }
 
-func ExtractTypedNamedGroups[T any](input string, pattern string) (map[string]T, error) {
-	regex, err := compileRegex(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	submatches := regex.FindStringSubmatch(input)
+func ExtractTypedNamedGroupsWithCompiled[T any](input string, compiled *CompiledPattern) (map[string]T, error) {
+	submatches := compiled.regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
 	}
@@ -113,7 +164,7 @@ func ExtractTypedNamedGroups[T any](input string, pattern string) (map[string]T,
 		return nil, ErrExpectedStruct
 	}
 
-	captureTree := parseCaptureTree(regex.String())
+	captureTree := compiled.captureTree()
 	extracted := map[string]any{}
 
 	for _, node := range captureTree {
@@ -143,14 +194,9 @@ func ExtractTypedNamedGroups[T any](input string, pattern string) (map[string]T,
 	return convertNamedGroupValues[T](extracted)
 }
 
-func ExtractToStruct[T any](input string, pattern string) (T, error) {
+func ExtractToStructWithCompiled[T any](input string, compiled *CompiledPattern) (T, error) {
 	var result T
-	regex, err := compileRegex(pattern)
-	if err != nil {
-		return result, err
-	}
-
-	submatches := regex.FindStringSubmatch(input)
+	submatches := compiled.regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return result, ErrNoMatch
 	}
@@ -162,7 +208,7 @@ func ExtractToStruct[T any](input string, pattern string) (T, error) {
 
 	structValue := reflect.New(targetType).Elem()
 
-	captureTree := parseCaptureTree(regex.String())
+	captureTree := compiled.captureTree()
 	if err := applyStructNodes(structValue, captureTree, submatches); err != nil {
 		return result, err
 	}
@@ -170,18 +216,13 @@ func ExtractToStruct[T any](input string, pattern string) (T, error) {
 	return structValue.Interface().(T), nil
 }
 
-func ExtractTypedUnnamedGroups[T any](input string, pattern string) ([]T, error) {
-	regex, err := compileRegex(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	submatches := regex.FindStringSubmatch(input)
+func ExtractTypedUnnamedGroupsWithCompiled[T any](input string, compiled *CompiledPattern) ([]T, error) {
+	submatches := compiled.regex.FindStringSubmatch(input)
 	if len(submatches) == 0 {
 		return nil, ErrNoMatch
 	}
 
-	captureTree := parseCaptureTree(regex.String())
+	captureTree := compiled.captureTree()
 	extracted := make([]T, 0, len(captureTree))
 
 	for _, node := range captureTree {
@@ -199,6 +240,14 @@ func ExtractTypedUnnamedGroups[T any](input string, pattern string) ([]T, error)
 	}
 
 	return extracted, nil
+}
+
+func (compiled *CompiledPattern) captureTree() []*captureNode {
+	compiled.captureTreeOnce.Do(func() {
+		compiled.captureTreeNodes = parseCaptureTree(compiled.pattern)
+	})
+
+	return compiled.captureTreeNodes
 }
 
 type captureNode struct {
